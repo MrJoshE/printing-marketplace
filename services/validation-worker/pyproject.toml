@@ -1,0 +1,26 @@
+
+[tool.ruff]
+# Target Python 3.13
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+# Enable: Pyflakes (F), pycodestyle (E, W), isort (I), type-checking (TCH)
+select = ["F", "E", "W", "I", "TCH"]
+
+[tool.mypy]
+# Strict type checking mode
+python_version = "3.13"
+strict = true
+ignore_missing_imports = true # For libraries like trimesh/boto3 if they lack stubs
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+testpaths = ["tests"]
+log_cli = false
+
+log_cli_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

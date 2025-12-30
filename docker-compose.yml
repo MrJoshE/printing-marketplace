@@ -1,0 +1,43 @@
+services:
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "4024:4024"
+    networks:
+      - printing_service
+  
+  validation-worker:
+    build:
+      context: ./services/validation-worker
+      dockerfile: Dockerfile
+    container_name: printing_marketplace_validation_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - printing_service
+
+  # web:
+  #   build:
+  #     context: ./services/marketplace-web-ui
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - .env
+  #   ports:
+  #     - "${HTTP_PORT}:80"
+  #   volumes:
+  #     # Mount the TEMPLATE, not the final config
+  #     - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template
+  #   depends_on:
+  #     - gateway
+  #     - authorization
+  #   networks:
+  #     - printing_service
+
+networks:
+  printing_service:
+    external: true

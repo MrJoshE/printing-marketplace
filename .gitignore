@@ -1,0 +1,7 @@
+*.env
+validation-worker/pyenv/
+__pycache__/
+pyenv/
+*.pyc
+.mypy_cache/
+.pytest_cache/

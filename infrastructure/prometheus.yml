@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s # Scrape often for real-time feel
+
+scrape_configs:
+  - job_name: "nats"
+    static_configs:
+      - targets: ["nats-exporter:7777"] # Container name : Port
