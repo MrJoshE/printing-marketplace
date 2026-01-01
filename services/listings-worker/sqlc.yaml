@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "./internal/database/postgresql/sqlc/queries.sql"
+    schema: "../gateway/internal/database/postgresql/migrations"
+    gen:
+      go:
+        package: "listings_worker"
+        out: "./internal/database/postgresql/sqlc"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        emit_interface: true # Generate interfaces for easier mocking in tests
+        emit_prepared_queries: true

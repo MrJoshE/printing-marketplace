@@ -29,5 +29,6 @@ func NewTestLogger() *slog.Logger {
 	// You might want io.Discard here if you want silent tests,
 	// or os.Stdout if you want to see logs during -v
 	baseHandler := slog.NewJSONHandler(os.Stdout, nil)
+
 	return slog.New(telemetry.NewTraceHandler(baseHandler))
 }

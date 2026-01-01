@@ -152,6 +152,8 @@ func (s *svc) CreateListing(ctx context.Context, userInfo auth.UserInfo, req *Cr
 		return repo.Listing{}, errors.New(errors.ErrInternal, "Failed to finalise transaction", err)
 	}
 
+	// 6. Publish Events to Validate Files
+	s.logger.DebugContext(ctx, "Publishing file validation events", "count", len(eventsToPublish))
 	for _, evt := range eventsToPublish {
 		payload := events.StartFileValidationEvent{
 			ListingID: evt.ListingID,
@@ -172,6 +174,14 @@ func (s *svc) CreateListing(ctx context.Context, userInfo auth.UserInfo, req *Cr
 				"trace_id", traceIDVal,
 				"error", err,
 			)
+		} else {
+			s.logger.DebugContext(ctx, "Published file validation event",
+				"file_id", evt.FileID,
+				"file_type", evt.FileType,
+				"file_key", evt.FileKey,
+				"listing_id", evt.ListingID,
+				"trace_id", traceIDVal,
+			)
 		}
 	}
 
@@ -181,12 +191,12 @@ func (s *svc) CreateListing(ctx context.Context, userInfo auth.UserInfo, req *Cr
 func (s *svc) GetListingsForUser(ctx context.Context, userInfo auth.UserInfo) ([]ListingResponse, error) {
 	var userUUID pgtype.UUID
 	if err := userUUID.Scan(userInfo.ID); err != nil {
-		return nil, fmt.Errorf("invalid user uuid: %w", err)
+		return nil, errors.New(errors.ErrInvalidInput, "Invalid user ID provided", err)
 	}
 
 	rows, err := s.repo.GetListingsByUserID(ctx, userUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch listings: %w", err)
+		return nil, errors.New(errors.ErrInternal, "Unable to get the users listings", err)
 	}
 
 	// 3. Transform Rows -> Responses
@@ -321,6 +331,8 @@ func (req *CreateListingRequest) Validate(userId string) *errors.AppError {
 
 	for _, f := range req.Files {
 		if !checkUserOwnsFile(userId, f.Path) {
+			fmt.Printf("User %s does not own file %s\n", userId, f.Path)
+
 			return errors.New(errors.ErrInvalidInput, "User does not own the file", nil)
 		}
 

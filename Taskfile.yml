@@ -22,10 +22,21 @@ tasks:
       - go test -v -race ./...
     dir: ./services/gateway
 
+  test-indexer:
+    cmds:
+      - go test -v -race ./...
+    dir: ./services/listings-worker
+
   test-validation-worker:
     cmds:
       - pytest -v
     dir: ./services/validation-worker
+
+  test-all:
+    cmds:
+      - task: test-gateway
+      - task: test-indexer
+      - task: test-validation-worker
 
   validation-worker-benchmark-large-image:
     cmds:
@@ -47,9 +58,15 @@ tasks:
       - python bench.py cpu --file ./benchmark/small_image.jpg --count 50 -c 2
     dir: ./services/validation-worker
 
+  generate-sqlc:
+    cmds:
+      - sqlc generate --file ./services/gateway/sqlc.yaml
+      - sqlc generate --file ./services/listings-worker/sqlc.yaml
+
   migrate-up:
     cmds:
       - sqlc generate --file ./services/gateway/sqlc.yaml
+      - sqlc generate --file ./services/listings-worker/sqlc.yaml
       - echo "Applying migrations from {{.MIGRATION_DIR}} to database at {{.DB_DSN}}"
       - goose -dir "{{.MIGRATION_DIR}}" postgres "{{.DB_DSN}}" up
 
