@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from PIL import Image, ImageOps
 
@@ -16,7 +17,7 @@ class WebPNormalizationProcessor(BaseProcessor):
     def __init__(self, quality: int = 85):
         self.quality = quality
 
-    def process(self, context: AssetContext) -> ProcessingResult:
+    def process(self, context: AssetContext, additional_info: dict = {}) -> ProcessingResult[Path]:
         logger = logging.LoggerAdapter(logging.getLogger(__name__), {"trace_id": context.trace_id})
 
         try:

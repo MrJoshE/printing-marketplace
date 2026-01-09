@@ -18,7 +18,7 @@ def valid_jpg(tmp_path):
 
 def test_pipeline(valid_jpg):
     from core import AssetContext, ValidationPipeline, ValidationPolicy
-    from validators.image.file_type_validator import FileTypeValidator
+    from validators.image.image_file_type_validator import ImageFileTypeValidator
     from validators.image.integrity_validator import ImageIntegrityValidator
     from validators.image.resolution_compliance_validator import ResolutionValidator
 
@@ -26,7 +26,7 @@ def test_pipeline(valid_jpg):
     policy = ValidationPolicy()
     pipeline = ValidationPipeline(
         validators=[
-            FileTypeValidator(),
+            ImageFileTypeValidator(),
             ResolutionValidator(),
             ImageIntegrityValidator(),
         ]

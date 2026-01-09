@@ -11,7 +11,7 @@ class ResolutionValidator(BaseValidator):
     Uses lazy loading to avoid reading pixel data into memory.
     """
 
-    is_critical = False
+    IS_CRITICAL = False
 
     def validate(self, context: AssetContext, policy: ValidationPolicy) -> ValidationResult:
         # Setup contextual logger

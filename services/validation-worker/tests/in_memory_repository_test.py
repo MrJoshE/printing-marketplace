@@ -29,7 +29,7 @@ async def test_repo_rejects_listing_if_any_file_fails():
     repo.seed("listing_bad", ["file_A", "file_B"])
 
     # 1. Fail First File
-    await repo.mark_file_failed("file_A", "Corrupt Data")
+    await repo.mark_file_invalid("file_A", "Corrupt Data")
 
     # 2. Validate Second File (The last one to finish)
     # Expectation: False (It finishes, but because file_A is INVALID, listing becomes REJECTED)

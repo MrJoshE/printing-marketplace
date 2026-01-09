@@ -21,7 +21,7 @@ type MockBus struct {
 
 func (m *MockBus) Close() error { return nil }
 
-func (m *MockBus) Subscribe(subject, group string, handler events.Handler) (events.Subscription, error) {
+func (m *MockBus) Subscribe(subject, group string, identifier string, handler events.Handler) (events.Subscription, error) {
 	// This allows testify to record the call
 	args := m.Called(subject, group, handler)
 	return args.Get(0).(events.Subscription), args.Error(1)

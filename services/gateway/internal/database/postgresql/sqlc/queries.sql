@@ -12,9 +12,12 @@ SELECT
         json_agg(
             json_build_object(
                 'id', f.id,
-                'url', f.file_path, -- Mapping file_path to 'url' for the frontend
-                'type', f.file_type,
+                'file_path', f.file_path,
+                'file_type', f.file_type,
                 'status', f.status,
+                'error_message', f.error_message,
+                'is_generated', f.is_generated,
+                'source_file_id', f.source_file_id,
                 'size', f.file_size,
                 'metadata', f.metadata
             )

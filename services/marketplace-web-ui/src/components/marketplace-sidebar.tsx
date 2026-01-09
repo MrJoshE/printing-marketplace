@@ -34,7 +34,7 @@ const data = {
     { title: "Create Listing", url: "/create-listing", icon: IconPlus },
   ],
   library: [
-    { title: "My Listings", url: "/my-listings", icon: IconBox },
+    { title: "My Listings", url: "/my-listings", icon: IconBox},
     { title: "Purchases", url: "/purchases", icon: IconShoppingBag },
   ],
   support: [
@@ -98,7 +98,7 @@ export function MarketplaceSidebar({ ...props }: React.ComponentProps<typeof Sid
         </SidebarGroup>
 
         {/* Section 2: Library */}
-        <SidebarGroup>
+        {user && <SidebarGroup>
           <SidebarGroupLabel>Library</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -121,7 +121,7 @@ export function MarketplaceSidebar({ ...props }: React.ComponentProps<typeof Sid
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
+}
         {/* Section 3: Support */}
         <SidebarGroup className="mt-auto">
           <SidebarGroupLabel>Support</SidebarGroupLabel>

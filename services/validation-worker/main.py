@@ -59,6 +59,7 @@ async def main(config: EnvironmentConfig):
     elif isinstance(config, ProductionConfig):
         config = cast("ProductionConfig", config)
         logger.setLevel(logging.INFO)
+        config.worker_name = "validation-worker-v2"
 
         # 1. CONNECT NATS (With Retry)
         async def connect_nats():
@@ -66,12 +67,15 @@ async def main(config: EnvironmentConfig):
             # We use max_reconnect_attempts=-1 so if it drops LATER, it reconnects forever.
             # But the 'await connect' here ensures the FIRST connection works.
             logger.info(f"[Startup]: 📊 Connecting to NATS at {config.nats.endpoint}.")
-            await nc.connect(config.nats.endpoint, name="validation-worker", max_reconnect_attempts=-1)
-            return nc
+            await nc.connect(config.nats.endpoint, max_reconnect_attempts=-1)
 
-        nc = await wait_for_connection("NATS", connect_nats)
+            # ✅ CREATE JETSTREAM CONTEXT
+            js = nc.jetstream()
+            logger.info("[Startup]: 📊 Connected to NATS and JetStream context created.")
+            return nc, js
 
-        event_bus = NatsEventBus(nc)
+        nc, js = await wait_for_connection("NATS", connect_nats)
+        event_bus = NatsEventBus(nc, js, durable_name=config.worker_name, queue_group=config.consumer_group)
 
         # 2. CONNECT POSTGRES (With Retry)
         async def connect_db():

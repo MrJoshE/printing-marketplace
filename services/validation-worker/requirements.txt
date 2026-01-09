@@ -13,3 +13,4 @@ puremagic
 pytest
 asyncpg
 pytest-asyncio
+pyrender

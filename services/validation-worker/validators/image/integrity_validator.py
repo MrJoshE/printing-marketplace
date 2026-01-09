@@ -19,7 +19,7 @@ class ImageIntegrityValidator(BaseValidator):
 
     # This reads the whole file (I/O heavy), so we run it in the parallel "Standard Phase",
     # not the "Critical Phase".
-    is_critical = False
+    IS_CRITICAL = False
 
     def validate(self, context: AssetContext, policy: ValidationPolicy) -> ValidationResult:
         # Setup contextual logger

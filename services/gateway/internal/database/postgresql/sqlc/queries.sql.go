@@ -81,7 +81,7 @@ INSERT INTO listing_files (
     listing_id, file_path, file_type, file_size, metadata, status
 ) VALUES (
     $1, $2, $3, $4, $5, $6
-) RETURNING id, listing_id, file_path, file_type, file_size, metadata, status, error_message, created_at, updated_at, deleted_at
+) RETURNING id, listing_id, file_path, file_type, file_size, metadata, status, error_message, is_generated, source_file_id, created_at, updated_at, deleted_at
 `
 
 type CreateListingFileParams struct {
@@ -112,6 +112,8 @@ func (q *Queries) CreateListingFile(ctx context.Context, arg CreateListingFilePa
 		&i.Metadata,
 		&i.Status,
 		&i.ErrorMessage,
+		&i.IsGenerated,
+		&i.SourceFileID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -120,7 +122,7 @@ func (q *Queries) CreateListingFile(ctx context.Context, arg CreateListingFilePa
 }
 
 const getFilesByListingID = `-- name: GetFilesByListingID :many
-SELECT id, listing_id, file_path, file_type, file_size, metadata, status, error_message, created_at, updated_at, deleted_at FROM listing_files 
+SELECT id, listing_id, file_path, file_type, file_size, metadata, status, error_message, is_generated, source_file_id, created_at, updated_at, deleted_at FROM listing_files 
 WHERE listing_id = $1 AND deleted_at IS NULL
 `
 
@@ -142,6 +144,8 @@ func (q *Queries) GetFilesByListingID(ctx context.Context, listingID pgtype.UUID
 			&i.Metadata,
 			&i.Status,
 			&i.ErrorMessage,
+			&i.IsGenerated,
+			&i.SourceFileID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -224,9 +228,12 @@ SELECT
         json_agg(
             json_build_object(
                 'id', f.id,
-                'url', f.file_path, -- Mapping file_path to 'url' for the frontend
-                'type', f.file_type,
+                'file_path', f.file_path,
+                'file_type', f.file_type,
                 'status', f.status,
+                'error_message', f.error_message,
+                'is_generated', f.is_generated,
+                'source_file_id', f.source_file_id,
                 'size', f.file_size,
                 'metadata', f.metadata
             )

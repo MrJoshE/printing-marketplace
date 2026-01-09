@@ -1,5 +1,5 @@
 {
-    "python.defaultInterpreterPath": "~/Documents/Projects/printing-marketplace/services/validation-worker/pyenv/bin/python",
+    "python.defaultInterpreterPath": "~/Documents/Projects/printing-marketplace/services/model-generator/pyenv/bin/python",
     "python-envs.pythonProjects": [],
     "python-envs.defaultEnvManager": "ms-python.python:system"
 }

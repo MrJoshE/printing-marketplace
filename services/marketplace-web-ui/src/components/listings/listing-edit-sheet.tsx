@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, Image as ImageIcon, Loader2, Mail, Save, Upload } from "lucide-react"
+import { AlertCircle, Loader2, Mail, Save } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
@@ -12,9 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
-import type { ListingViewProps } from "@/lib/api/models"
+import type { ListingProps } from "@/lib/api/models"
 import { ListingService } from "@/lib/services/listing-service"
 import { AnimatedDeleteButton } from "../ui/animated-delete-button"
+import { ListingEditImages, ListingEditModels } from "./listing-edit-files"
 
 // Zod Schema for validation
 const listingFormSchema = z.object({
@@ -26,7 +27,7 @@ const listingFormSchema = z.object({
 type ListingFormValues = z.infer<typeof listingFormSchema>
 
 interface ListingEditSheetProps {
-  listing: ListingViewProps
+  listing: ListingProps
   isOpen: boolean
   onClose: () => void
 }
@@ -157,26 +158,8 @@ export function ListingEditSheet({ listing, isOpen, onClose }: ListingEditSheetP
             <form id="listing-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <fieldset disabled={isRejected || isPending || deleteMutation.isPending} className="space-y-8 group-disabled:opacity-50">
                 
-                {/* Images Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <FormLabel className="text-base font-semibold">Listing Images</FormLabel>
-                    <Button type="button" variant="outline" size="sm" className="h-8 gap-2 text-xs">
-                      <Upload className="h-3 w-3" /> Add Image
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* Placeholder for upload slot */}
-                    <button
-                      type="button"
-                      className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-dashed hover:bg-muted/50 transition-colors"
-                    >
-                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Drop to upload</span>
-                    </button>
-                  </div>
-                </div>
+                <ListingEditImages files={listing.files} onDeleteFile={async (fileId) => console.log("delete")} onUploadFile={async (file) => console.log(file)} valdateUploadFile={(file) => "Not implemented yet!"}/>
+                <ListingEditModels files={listing.files} onDeleteFile={async (fileId) => console.log("delete")} onUploadFile={async (file) => console.log(file)} valdateUploadFile={(file) => "Not implemented yet!"}/>
 
                 <div className="h-px bg-border" />
 

@@ -24,12 +24,15 @@ type CreateListingFile struct {
 }
 
 type ListingFileDTO struct {
-	ID       string          `json:"id"`
-	Url      *string         `json:"url"` // Presigned URL for accessing the file if the file has been validated
-	Type     string          `json:"type"`
-	Status   string          `json:"status"`
-	Size     int64           `json:"size"`
-	Metadata json.RawMessage `json:"metadata"`
+	ID           string          `json:"id"`
+	FilePath     *string         `json:"file_path"` // Presigned URL for accessing the file if the file has been validated
+	FileType     string          `json:"file_type"`
+	Status       string          `json:"status"`
+	Size         int64           `json:"size"`
+	Metadata     json.RawMessage `json:"metadata"`
+	ErrorMessage *string         `json:"error_message"`
+	IsGenerated  bool            `json:"is_generated"`
+	SourceFileID *string         `json:"source_file_id,omitempty"`
 }
 
 type ListingResponse struct {

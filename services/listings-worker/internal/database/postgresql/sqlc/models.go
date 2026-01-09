@@ -16,6 +16,7 @@ type FileStatus string
 const (
 	FileStatusPENDING FileStatus = "PENDING"
 	FileStatusVALID   FileStatus = "VALID"
+	FileStatusINVALID FileStatus = "INVALID"
 	FileStatusFAILED  FileStatus = "FAILED"
 )
 
@@ -170,6 +171,8 @@ type ListingFile struct {
 	Metadata     []byte             `json:"metadata"`
 	Status       NullFileStatus     `json:"status"`
 	ErrorMessage pgtype.Text        `json:"error_message"`
+	IsGenerated  bool               `json:"is_generated"`
+	SourceFileID pgtype.UUID        `json:"source_file_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`

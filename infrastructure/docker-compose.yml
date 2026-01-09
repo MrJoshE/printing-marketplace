@@ -126,6 +126,11 @@ services:
         # 4. Make 'public-files' readable by the world
         /usr/bin/mc anonymous set download myminio/public-files
 
+        # 5. Create 'product-files / models' bucket
+        # Create 'product-files' bucket
+        /usr/bin/mc mb --ignore-existing myminio/product-files
+        # Explicitly ensure it is private (usually default, but good for safety)
+        /usr/bin/mc anonymous set none myminio/product-files
         echo "Ensuring Service Account exists..."
         
         # Try to add the user/key. If it exists, this might error, so we allow failure or check first.
@@ -133,13 +138,27 @@ services:
         
         /usr/bin/mc admin user add myminio ${GATEWAY_S3_ACCESS_KEY_ID} ${GATEWAY_S3_SECRET_ACCESS_KEY}
         /usr/bin/mc admin user add myminio ${VALIDATION_WORKER_S3_ACCESS_KEY_ID} ${VALIDATION_WORKER_S3_SECRET_ACCESS_KEY}
-        
+
         # Grant read/write permission to this user
         /usr/bin/mc admin policy attach myminio readwrite --user ${GATEWAY_S3_ACCESS_KEY_ID}
         /usr/bin/mc admin policy attach myminio readwrite --user ${VALIDATION_WORKER_S3_ACCESS_KEY_ID}
 
         echo 'MinIO Setup Complete'
         exit 0
+  typesense:
+      image: typesense/typesense:29.0
+      container_name: typesense
+      restart: on-failure
+      ports:
+        - "8108:8108"
+      volumes:
+        - typesense_data:/data
+      command: '--data-dir /data --api-key=${TYPESENSE_API_KEY} --enable-cors'
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8108/health"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
   # nats-exporter:
   #   image: natsio/prometheus-nats-exporter:latest
   #   command: -connz -routez -subz -varz -prefix=nats http://nats:8222
@@ -185,6 +204,8 @@ volumes:
     driver: local
   grafana_data:
     driver: local
+  typesense_data:
+    driver: local 
 networks:
   printing_service:
     external: true

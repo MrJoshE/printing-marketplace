@@ -25,9 +25,10 @@ func main() {
 	eventsConfig := events.NewEventConfig()
 
 	config := config{
-		events:   eventsConfig,
-		frontend: os.Getenv("DOMAIN_NAME"),
-		addr:     ":" + os.Getenv("API_PORT"),
+		events:         eventsConfig,
+		frontend:       os.Getenv("DOMAIN_NAME"),
+		addr:           ":" + os.Getenv("API_PORT"),
+		publicFilesUrl: os.Getenv("PUBLIC_FILES_URL"),
 		fileConstraints: map[string]files.FileConstraint{
 			"image": {
 				MaxSize:          5 * 1024 * 1024, // 5MB

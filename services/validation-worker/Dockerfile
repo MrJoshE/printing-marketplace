@@ -27,6 +27,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV PYOPENGL_PLATFORM=egl
+
 # 1. Install Runtime System Libraries
 # - libmagic1: Required by 'puremagic'
 # - libgl1-mesa-glx / libxrender1: REQUIRED by 'trimesh' to load 3D files
@@ -35,8 +37,13 @@ RUN apt-get update && apt-get install -y \
     libmagic1 \
     libxrender1 \
     libpq5 \
+    libgl1 \ 
+    libegl1 \ 
+    libosmesa6 \
+    libgl1-mesa-dev \
+    libglu1-mesa \
+    freeglut3-dev \
     && rm -rf /var/lib/apt/lists/*
-
 # 2. Copy installed python packages from builder
 COPY --from=builder /install /usr/local
 

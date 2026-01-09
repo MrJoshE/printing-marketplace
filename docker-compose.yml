@@ -21,6 +21,17 @@ services:
     networks:
       - printing_service
 
+  listings-worker:
+    build:
+      context: ./services/listings-worker
+      dockerfile: Dockerfile
+    container_name: printing_marketplace_listings_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - printing_service
+
   # web:
   #   build:
   #     context: ./services/marketplace-web-ui

@@ -53,7 +53,7 @@ func TestIndexListing_HappyPath(t *testing.T) {
 	fakeIndexer := indexing.NewInMemoryIndexer()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	svc := indexing.NewService(fakeIndexer, mockRepo, logger)
+	svc := indexing.NewService(fakeIndexer, mockRepo, logger, "http://s3.amazonaws.com/public-files")
 
 	// 2. Data Setup
 	idStr := "550e8400-e29b-41d4-a716-446655440000"
@@ -106,7 +106,7 @@ func TestIndexListing_GhostRecord_Acknowledges(t *testing.T) {
 
 	mockRepo := new(MockRepo)
 	fakeIndexer := indexing.NewInMemoryIndexer()
-	svc := indexing.NewService(fakeIndexer, mockRepo, slog.Default())
+	svc := indexing.NewService(fakeIndexer, mockRepo, slog.Default(), "http://s3.amazonaws.com/public-files")
 
 	idStr := "550e8400-e29b-41d4-a716-446655440000"
 
@@ -127,7 +127,7 @@ func TestIndexListing_DBError_Retries(t *testing.T) {
 
 	mockRepo := new(MockRepo)
 	fakeIndexer := indexing.NewInMemoryIndexer()
-	svc := indexing.NewService(fakeIndexer, mockRepo, slog.Default())
+	svc := indexing.NewService(fakeIndexer, mockRepo, slog.Default(), "http://s3.amazonaws.com/public-files")
 
 	mockRepo.On("GetListingByID", mock.Anything, mock.Anything).
 		Return(repo.GetListingByIDRow{}, errors.New("connection refused"))
@@ -142,7 +142,7 @@ func TestIndexListing_InvalidUUID_Acknowledges(t *testing.T) {
 	// SCENARIO: Malformed ID string.
 	// EXPECT: Return nil (Ack) immediately.
 
-	svc := indexing.NewService(nil, nil, slog.Default())
+	svc := indexing.NewService(nil, nil, slog.Default(), "http://s3.amazonaws.com/public-files")
 
 	err := svc.IndexListing(context.Background(), "not-a-uuid")
 

@@ -12,7 +12,7 @@ import (
 )
 
 const getFilesByListingID = `-- name: GetFilesByListingID :many
-SELECT id, listing_id, file_path, file_type, file_size, metadata, status, error_message, created_at, updated_at, deleted_at FROM listing_files 
+SELECT id, listing_id, file_path, file_type, file_size, metadata, status, error_message, is_generated, source_file_id, created_at, updated_at, deleted_at FROM listing_files 
 WHERE listing_id = $1 AND deleted_at IS NULL
 `
 
@@ -34,6 +34,8 @@ func (q *Queries) GetFilesByListingID(ctx context.Context, listingID pgtype.UUID
 			&i.Metadata,
 			&i.Status,
 			&i.ErrorMessage,
+			&i.IsGenerated,
+			&i.SourceFileID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,

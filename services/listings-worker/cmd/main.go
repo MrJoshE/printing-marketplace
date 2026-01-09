@@ -18,13 +18,14 @@ import (
 )
 
 type Config struct {
-	Env          string
-	Port         string
-	DatabaseURL  string
-	NatsURL      string
-	TypesenseURL string
-	TypesenseKey string
-	EventsConfig *events.EventConfig
+	Env            string
+	Port           string
+	DatabaseURL    string
+	NatsURL        string
+	TypesenseURL   string
+	TypesenseKey   string
+	PublicFilesURL string
+	EventsConfig   *events.EventConfig
 }
 
 func main() {
@@ -64,12 +65,12 @@ func run(logger *slog.Logger) error {
 	}
 
 	// 5. Initialize Search Indexer (Typesense)
-	indexer := indexing.NewClient(cfg.TypesenseKey, cfg.TypesenseURL)
+	indexer := indexing.NewInMemoryIndexer() //indexing.NewClient(cfg.TypesenseKey, cfg.TypesenseURL)
 
 	// 6. Initialize Service Layer
 	// Wire up the SQLC repository and the Indexer
 	queries := repo.New(dbPool)
-	svc := indexing.NewService(indexer, queries, logger)
+	svc := indexing.NewService(indexer, queries, logger, cfg.PublicFilesURL)
 
 	reader := events.NewEventReader(bus, cfg.EventsConfig, logger)
 
@@ -138,13 +139,14 @@ func loadConfig() Config {
 	}
 
 	return Config{
-		Env:          get("INDEX_WORKER_ENV", "production"),
-		Port:         get("INDEX_WORKER_PORT", "8081"),
-		DatabaseURL:  os.Getenv("DATABASE_URL"),
-		NatsURL:      os.Getenv("NATS_URL"),
-		TypesenseURL: os.Getenv("TYPESENSE_URL"),
-		TypesenseKey: os.Getenv("TYPESENSE_API_KEY"),
-		EventsConfig: events.NewEventConfig(),
+		Env:            get("INDEX_WORKER_ENV", "production"),
+		Port:           get("INDEX_WORKER_PORT", "4084"),
+		DatabaseURL:    os.Getenv("DB_DSN"),
+		NatsURL:        os.Getenv("NATS_ENDPOINT"),
+		TypesenseURL:   os.Getenv("TYPESENSE_URL"),
+		TypesenseKey:   os.Getenv("TYPESENSE_API_KEY"),
+		EventsConfig:   events.NewEventConfig(),
+		PublicFilesURL: os.Getenv("PUBLIC_FILES_URL"),
 	}
 }
 

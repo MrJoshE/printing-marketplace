@@ -26,7 +26,9 @@ func (r *EventReader) SubscribeToIndexListingEvents(handler func(evt IndexListin
 	subject := r.config.IndexListing
 	r.logger.Info("Subscribing to IndexListing events", "subject", subject)
 
-	_, err := r.bus.Subscribe(subject, queue, func(ctx context.Context, payload []byte) error {
+	workerDurable := r.config.WorkerName
+
+	_, err := r.bus.Subscribe(subject, queue, workerDurable, func(ctx context.Context, payload []byte) error {
 		var evt IndexListingEvent
 
 		if err := json.Unmarshal(payload, &evt); err != nil {

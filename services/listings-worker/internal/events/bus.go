@@ -12,6 +12,6 @@ type Subscription struct {
 }
 
 type Bus interface {
-	Subscribe(subject string, group string, handler Handler) (Subscription, error)
+	Subscribe(subject string, group string, name string, handler Handler) (Subscription, error)
 	Close() error
 }

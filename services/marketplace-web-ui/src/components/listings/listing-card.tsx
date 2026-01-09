@@ -1,13 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ListingSummary } from "@/lib/api/models";
+import type { IndexedListingProps } from "@/lib/api/models";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Loader2, MoreHorizontal, ShieldAlert } from "lucide-react";
 
 interface ListingCardProps {
-  listing: ListingSummary;
-  onClick?: (listing: ListingSummary) => void; 
+  listing: IndexedListingProps;
+  onClick?: (listing: IndexedListingProps) => void; 
   className?: string;
 }
 
@@ -37,9 +37,9 @@ export function ListingCard({ listing, onClick, className }: ListingCardProps) {
         <div className="relative aspect-square w-full overflow-hidden bg-muted">
           
           {/* Base Image */}
-          {listing.coverImageUrl ? (
+          {listing.thumbnail_path ? (
             <img
-              src={listing.coverImageUrl}
+              src={listing.thumbnail_path}
               alt={listing.title}
               className={cn(
                 "h-full w-full object-cover transition-transform duration-700",

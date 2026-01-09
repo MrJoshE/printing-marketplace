@@ -63,16 +63,49 @@ export const AVAILABLE_CATEGORIES: CategoryFilter[] = [
   { value: "spare-parts", label: "Spare Parts" },
 ];
 
-export interface ListingViewProps {
+export interface ListingFile   {
+  // Unique identifier of the file, use for deleting or referencing
+  id: string;
+
+  // Storage path -> URL to access the file
+  file_path: string | null;
+
+  // Type of the file, e.g., "model", "image", etc
+  file_type: string;
+
+  file_size: number;
+
+  // Is this file system-generated (like renders) or user-uploaded  
+  is_generated: boolean;
+
+  // Optional source file ID if this file was derived from another file
+  source_file_id?: string | null; 
+
+  // Current status of the file, e.g. "pending", "valid", "invalid" or "failed"
+  status: string;
+
+  // The size of the file in bytes most likely 0 (don't rely on this or show it)
+  size: number;
+
+  // Some RAW JSON metadata associated with the file
+  metadata: Record<string, any>;
+
+  // Optional error message if the file is in an error state or a warning about the file.
+  error_message?: string | null;
+}
+
+/**
+ * Interface for the properties expected from
+ */
+export interface ListingProps {
     // The unique identifier of the listing to display
     id: string
 
     // URL of the cover image for the listing
-    coverImageUrl: string
+    thumbnail_path?: string | null
 
-    // The URLs of additional images for the listing
-    images: string[]
-
+    files: ListingFile[]
+    
     // Title of the listing
     title: string
 
@@ -82,7 +115,6 @@ export interface ListingViewProps {
     // Information about the seller of the listing
     seller_name: string
     seller_username:string
-
 
     // Payment details for the listing
     price_min_unit: number;
@@ -102,4 +134,4 @@ export interface ListingViewProps {
 
 }
 
-export type ListingSummary = Omit<ListingViewProps, "description" |"images">;
+export type IndexedListingProps = Omit<ListingProps, "description" | "files">;

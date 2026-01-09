@@ -2,13 +2,13 @@ import { ListingService } from "@/lib/services/listing-service";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import type { ListingViewProps } from "@/lib/api/models";
+import type { ListingProps } from "@/lib/api/models";
 import { ListingEditSheet } from "./listing-edit-sheet";
 import { ListingGrid } from "./listing-grid";
 
 export function UsersListings() {
     // 1. Local state to track which listing is currently being edited
-    const [selectedListingId, setSelectedListingId] = useState<ListingViewProps | null>(null);
+    const [selectedListingId, setSelectedListingId] = useState<ListingProps | null>(null);
 
     const { 
         data, 
@@ -19,7 +19,7 @@ export function UsersListings() {
         queryKey: ['listings', 'public'],
         queryFn: () => ListingService.getUsersListings(),
         placeholderData: (data) => data,
-        refetchInterval: 10_000, // Optional: refetch every 10 seconds
+        refetchInterval: 30_000, // Optional: refetch every 30 seconds
         refetchIntervalInBackground: false,
     })
 
@@ -31,7 +31,7 @@ export function UsersListings() {
                 isError={isError}
                 onRetry={refetch}
                 // 2. When clicked, set the ID. This triggers the Sheet to open.
-                onListingClicked={(listing) => setSelectedListingId(listing as ListingViewProps)}
+                onListingClicked={(listing) => setSelectedListingId(listing as ListingProps)}
             />
 
             {selectedListingId && (

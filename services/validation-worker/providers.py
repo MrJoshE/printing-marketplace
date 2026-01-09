@@ -9,6 +9,14 @@ import boto3
 
 
 class FileProvider(abc.ABC):
+    @abc.abstractmethod
+    def get_file_temp(self, id: str) -> Path:
+        """
+        Creates and returns a Path to a temporary file.
+        This doesn't handle cleanup; the caller is responsible for deleting the file when done.
+        """
+        pass
+
     @contextmanager
     @abc.abstractmethod
     def get_file(self, id: str) -> Iterator[Path]:
@@ -19,7 +27,15 @@ class FileProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def store_file(self, source_path: Path, dest_id: str) -> None:
+    def store_image(self, source_path: Path, dest_id: str) -> None:
+        """
+        Stores a local file to the provider's storage backend.
+        E.g., upload to S3 or move to a specific local directory.
+        """
+        pass
+
+    @abc.abstractmethod
+    def store_product_file(self, source_path: Path, dest_id: str) -> None:
         """
         Stores a local file to the provider's storage backend.
         E.g., upload to S3 or move to a specific local directory.
@@ -33,15 +49,26 @@ class LocalFileProvider(FileProvider):
     Simply ensures the file exists and yields the path.
     """
 
-    @contextmanager
-    def get_file(self, id: str) -> Iterator[Path]:
+    def get_file_temp(self, id: str) -> Path:
         path = Path(id)
         if not path.exists():
             raise FileNotFoundError(f"Local file not found: {id}")
-        yield path
-        # No cleanup needed for local files
+        return path
 
-    def store_file(self, source_path: Path, dest_id: str) -> None:
+    @contextmanager
+    def get_file(self, id: str) -> Iterator[Path]:
+        path = self.get_file_temp(id)
+        try:
+            yield path
+        finally:
+            path.unlink(missing_ok=True)
+
+    def store_image(self, source_path: Path, dest_id: str) -> None:
+        dest_path = Path(dest_id)
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.replace(dest_path)
+
+    def store_product_file(self, source_path: Path, dest_id: str) -> None:
         dest_path = Path(dest_id)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         source_path.replace(dest_path)
@@ -72,13 +99,22 @@ class S3FileProvider(FileProvider):
         self.s3_client = s3_client
         self.incoming_files_bucket = "incoming-files"
         self.public_files_bucket = "public-files"
+        self.product_files_bucket = "product-files"
+
+    def get_file_temp(self, id: str) -> Path:
+        id_suffix = Path(id).suffix
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=id_suffix)
+        self.s3_client.download_fileobj(self.incoming_files_bucket, id, tmp)
+        tmp.close()  # Close handle so other libs can open it
+        return Path(tmp.name)
 
     @contextmanager
     def get_file(self, id: str) -> Iterator[Path]:
+        id_suffix = Path(id).suffix
         # Create a temp file.
         # 'delete=False' so we can close the handle and let validators open it again.
         # We manually unlink (delete) it in the finally block.
-        tmp = tempfile.NamedTemporaryFile(delete=False)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=id_suffix)
 
         try:
             # Stream download to the temp file
@@ -92,9 +128,16 @@ class S3FileProvider(FileProvider):
             # CLEANUP: Crucial for memory/disk efficiency in a worker
             Path(tmp.name).unlink(missing_ok=True)
 
-    def store_file(self, source_path: Path, dest_id: str) -> None:
+    def store_image(self, source_path: Path, dest_id: str) -> None:
         try:
             with open(source_path, "rb") as f:
                 self.s3_client.upload_fileobj(f, self.public_files_bucket, dest_id)
+        except Exception as e:
+            raise IOError(f"Failed to upload to S3: {str(e)}")
+
+    def store_product_file(self, source_path: Path, dest_id: str) -> None:
+        try:
+            with open(source_path, "rb") as f:
+                self.s3_client.upload_fileobj(f, self.product_files_bucket, dest_id)
         except Exception as e:
             raise IOError(f"Failed to upload to S3: {str(e)}")

@@ -1,4 +1,4 @@
-import type { ListingSummary } from "@/lib/api/models";
+import type { IndexedListingProps } from "@/lib/api/models";
 import { cn } from "@/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowRight, RefreshCcw } from "lucide-react";
@@ -11,7 +11,7 @@ import { ListingCard } from "./listing-card";
 import { ListingGridEmpty } from "./listings-grid-empty";
 
 interface ListingGridProps {
-  listings: ListingSummary[]
+  listings: IndexedListingProps[]
   isLoading: boolean
   isError: boolean
   error?: Error | null
@@ -24,7 +24,7 @@ interface ListingGridProps {
   className?: string
   emptyState?: React.ReactNode
   layoutType?: "grid" | "carousel"
-  onListingClicked?: (listing: ListingSummary) => void
+  onListingClicked?: (listing: IndexedListingProps) => void
 }
 
 export function ListingGrid({

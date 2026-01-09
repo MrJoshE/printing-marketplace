@@ -9,11 +9,13 @@ type IndexListingEvent struct {
 }
 
 type EventConfig struct {
+	WorkerName   string
 	IndexListing string
 }
 
 func NewEventConfig() *EventConfig {
 	return &EventConfig{
+		WorkerName:   os.Getenv("INDEXING_WORKER_NAME"),
 		IndexListing: os.Getenv("EVENT_INDEX_LISTING"),
 	}
 }

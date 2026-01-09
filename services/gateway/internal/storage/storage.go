@@ -19,6 +19,10 @@ const (
 	// BucketPublic: Public Read.
 	// Validated files are moved here for permanent hosting.
 	BucketPublic Bucket = "public-files"
+
+	// BucketProduct: Private.
+	// Final storage for product files (3D models, etc).
+	BucketProduct Bucket = "product-files"
 )
 
 // Wrapper for standard errors so checking them is consistent

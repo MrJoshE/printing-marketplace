@@ -28,20 +28,22 @@ type ListingsService interface {
 }
 
 type svc struct {
-	repo         *repo.Queries
-	logger       *slog.Logger
-	db           postgresql.DBPool
-	storage      storage.Provider
-	eventHandler *events.EventHandler
+	repo           *repo.Queries
+	logger         *slog.Logger
+	db             postgresql.DBPool
+	storage        storage.Provider
+	eventHandler   *events.EventHandler
+	publicFilesURL string
 }
 
-func NewListingsService(repo *repo.Queries, db postgresql.DBPool, logger *slog.Logger, storage storage.Provider, eventHandler *events.EventHandler) ListingsService {
+func NewListingsService(repo *repo.Queries, db postgresql.DBPool, logger *slog.Logger, storage storage.Provider, eventHandler *events.EventHandler, publicFilesURL string) ListingsService {
 	return &svc{
-		repo:         repo,
-		db:           db,
-		logger:       logger,
-		storage:      storage,
-		eventHandler: eventHandler,
+		repo:           repo,
+		db:             db,
+		logger:         logger,
+		storage:        storage,
+		eventHandler:   eventHandler,
+		publicFilesURL: publicFilesURL,
 	}
 }
 
@@ -201,7 +203,6 @@ func (s *svc) GetListingsForUser(ctx context.Context, userInfo auth.UserInfo) ([
 
 	// 3. Transform Rows -> Responses
 	response := make([]ListingResponse, len(rows))
-
 	for i, row := range rows {
 		// A. Unmarshal the files JSON byte array into our Go struct slice
 		var files []ListingFileDTO
@@ -218,29 +219,58 @@ func (s *svc) GetListingsForUser(ctx context.Context, userInfo auth.UserInfo) ([
 			for _, f := range files {
 				if f.Status != "VALID" {
 					filteredFiles = append(filteredFiles, ListingFileDTO{
-						ID:       f.ID,
-						Url:      nil,
-						Type:     f.Type,
-						Status:   f.Status,
-						Size:     f.Size,
-						Metadata: f.Metadata,
+						ID:           f.ID,
+						FilePath:     nil,
+						FileType:     f.FileType,
+						Status:       f.Status,
+						Size:         f.Size,
+						IsGenerated:  f.IsGenerated,
+						ErrorMessage: f.ErrorMessage,
+						SourceFileID: f.SourceFileID,
+						Metadata:     f.Metadata,
 					})
 				} else {
-					var path *string
-					signedUrl, err := s.storage.PresignGet(ctx, storage.BucketPublic, *f.Url, time.Minute*10)
-					if err != nil {
-						fmt.Printf("error generating signed url for file %s: %v\n", *f.Url, err)
-						path = nil
-					} else {
-						path = &signedUrl
+					var finalPath *string
+					if f.FilePath == nil {
+						// This should not happen, but just in case...
+						s.logger.WarnContext(ctx, "Skipping VALID file with missing path", "file_id", f.ID)
+						continue
 					}
+
+					// LOGIC SPLIT: Private vs Public
+					if strings.ToUpper(f.FileType) == "MODEL" {
+						// 1. MODELS -> PRIVATE BUCKET (product-files)
+						// We MUST generate a temporary Pre-Signed URL
+						// Ensure you have `storage.BucketProduct` constant defined as "product-files"
+						signedUrl, err := s.storage.PresignGet(ctx, storage.BucketProduct, *f.FilePath, time.Minute*15)
+
+						if err != nil {
+							s.logger.ErrorContext(ctx, "Failed to sign model url", "file_id", f.ID, "error", err)
+							finalPath = nil
+						} else {
+							finalPath = &signedUrl
+						}
+
+					} else {
+						// 2. IMAGES -> PUBLIC BUCKET (public-files)
+						// No need to hit S3. Just construct the permanent URL.
+						// This is faster and lets the browser cache the image.
+						// Ensure publicFilesURL doesn't have trailing slash
+						// and f.FilePath doesn't have leading slash if you want to be safe
+						url := fmt.Sprintf("%s/%s", strings.TrimRight(s.publicFilesURL, "/"), *f.FilePath)
+						finalPath = &url
+					}
+
 					filteredFiles = append(filteredFiles, ListingFileDTO{
-						ID:       f.ID,
-						Url:      path,
-						Type:     f.Type,
-						Status:   f.Status,
-						Size:     f.Size,
-						Metadata: f.Metadata,
+						ID:           f.ID,
+						FilePath:     finalPath,
+						FileType:     f.FileType,
+						Status:       f.Status,
+						Size:         f.Size,
+						IsGenerated:  f.IsGenerated,
+						SourceFileID: f.SourceFileID,
+						ErrorMessage: f.ErrorMessage,
+						Metadata:     f.Metadata,
 					})
 				}
 			}
@@ -266,7 +296,8 @@ func (s *svc) GetListingsForUser(ctx context.Context, userInfo auth.UserInfo) ([
 			License:    row.License,
 			ThumbnailPath: func() *string {
 				if row.ThumbnailPath.Valid {
-					return &row.ThumbnailPath.String
+					url := s.publicFilesURL + row.ThumbnailPath.String
+					return &url
 				}
 				return nil
 			}(),

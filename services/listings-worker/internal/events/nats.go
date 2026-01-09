@@ -11,9 +11,10 @@ import (
 )
 
 type NATSBus struct {
-	nats *nats.Conn
-	js   nats.JetStreamContext
-	log  *slog.Logger
+	nats          *nats.Conn
+	js            nats.JetStreamContext
+	log           *slog.Logger
+	workerDurable string
 }
 
 func NewNATSBus(addr string, logger *slog.Logger) (Bus, error) {
@@ -55,6 +56,25 @@ func NewNATSBus(addr string, logger *slog.Logger) (Bus, error) {
 		return nil, err
 	}
 
+	// 3. Ensure Stream Exists (Idempotent)
+	streamName := "INDEX"
+	streamSubject := "index.>" // Listen to index.created, index.updated, etc.
+
+	// Check if stream info exists, if not, create it
+	_, err = js.StreamInfo(streamName)
+	if err != nil {
+		logger.Info("⚠️ Stream %s not found, creating...", streamName)
+		_, err = js.AddStream(&nats.StreamConfig{
+			Name:      streamName,
+			Subjects:  []string{streamSubject},
+			Retention: nats.WorkQueuePolicy,
+		})
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("✅ JetStream '%s' stream verified.", streamName)
+	}
+
 	return &NATSBus{
 		nats: nc,
 		js:   js,
@@ -62,11 +82,12 @@ func NewNATSBus(addr string, logger *slog.Logger) (Bus, error) {
 	}, nil
 }
 
-func (b *NATSBus) Subscribe(subject string, group string, handler Handler) (Subscription, error) {
+func (b *NATSBus) Subscribe(subject string, group string, name string, handler Handler) (Subscription, error) {
 	b.log.Info("Subscribing to subject", "subject", subject, "queue", group)
 
 	// Configure Subscription Options
 	opts := []nats.SubOpt{
+		nats.Durable(name),     // Durable Name for the Consumer
 		nats.ManualAck(),       // We control the Ack
 		nats.AckExplicit(),     // Required for robust systems
 		nats.DeliverAll(),      // If we crashed, catch up on what we missed

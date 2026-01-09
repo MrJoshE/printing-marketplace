@@ -41,6 +41,7 @@ type config struct {
 	addr                      string
 	fileConstraints           map[string]files.FileConstraint
 	fileValidationWindowHours int
+	publicFilesUrl            string
 }
 
 type databaseConfig struct {
@@ -87,7 +88,7 @@ func (app *application) mount() http.Handler {
 
 	eventHandler := events.NewEventHandler(app.eventBus, app.config.events, app.logger)
 
-	listingsService := listings.NewListingsService(repo, app.conn, app.logger, app.storage, eventHandler)
+	listingsService := listings.NewListingsService(repo, app.conn, app.logger, app.storage, eventHandler, app.config.publicFilesUrl)
 	listingsHandler := listings.NewListingsHandler(listingsService)
 
 	r.Group(func(r chi.Router) {

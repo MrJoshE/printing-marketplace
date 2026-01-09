@@ -8,8 +8,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from typing import Any, Callable, Coroutine, Dict, Generic, List, Optional
 
+import trimesh
+from annotated_types import T
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
@@ -42,8 +44,7 @@ class PostgresConfig(BaseSettings):
 
 
 class EventsConfig(BaseSettings):
-    image_validation_start: str = Field(..., alias="EVENT_VALIDATE_IMAGE_START")
-    model_validation_start: str = Field(..., alias="EVENT_VALIDATE_MODEL_START")
+    incoming_validation: str = Field(..., alias="VALIDATION_WORKER_EVENT_SUBJECT")
     index_listing: str = Field(..., alias="EVENT_INDEX_LISTING")
 
 
@@ -56,6 +57,8 @@ class ProductionConfig(BaseSettings, EnvironmentConfig):
     nats: NATSConfig = Field(default_factory=lambda: NATSConfig())  # type: ignore
     postgres: PostgresConfig = Field(default_factory=lambda: PostgresConfig())  # type: ignore
     validation_concurrency: int = Field(10, alias="VALIDATION_WORKER_CONCURRENCY")
+    worker_name: str = Field("validation-worker", alias="VALIDATION_WORKER_NAME")
+    consumer_group: str = Field("validation_workers", alias="VALIDATION_WORKER_CONSUMER_GROUP")
 
 
 class LocalConfig(EnvironmentConfig, BaseSettings):
@@ -83,6 +86,9 @@ class ValidationErrorCode(str, Enum):
     FILE_CORRUPT = "ERR_FILE_CORRUPT"
     DIMENSION_TOO_LARGE = "ERR_DIMENSION_TOO_LARGE"
     FILE_TOO_LARGE = "ERR_FILE_TOO_LARGE"
+    MESH_LOAD_FAILURE = "ERR_MESH_LOAD_FAILURE"
+    MESH_INTEGRITY_FAILURE = "ERR_MESH_INTEGRITY_FAILURE"
+    MODEL_TOO_COMPLEX = "ERR_MODEL_TOO_COMPLEX"
 
 
 @dataclass
@@ -107,6 +113,16 @@ class AssetContext:
     trace_id: str  # Trace ID for logging and debugging
     file_type_hint: str = "unknown"  # e.g., 'image', 'model'
 
+    # Internal caches for expensive operations
+    _cached_mesh: trimesh.Trimesh | None = field(default=None, init=False, repr=False)
+
+    @property
+    def mesh(self) -> trimesh.Trimesh:
+        """Lazy loader for 3D mesh, so it only loads if needed."""
+        if self._cached_mesh is None:
+            self._cached_mesh = trimesh.load_mesh(file_obj=str(self.file_path), force="mesh")
+        return self._cached_mesh
+
 
 @dataclass
 class ValidationPolicy:
@@ -115,27 +131,38 @@ class ValidationPolicy:
     """
 
     max_file_size_mb: float = 100.00  # in megabytes
+    max_model_verticies: int = 1_000_000
+    max_model_faces: int = 500_000
     timeout: float = 30.0  # seconds
 
     # Image-specific policies
-    allowed_image_file_types: List[str] = field(
-        default_factory=lambda: ["image/jpeg", "image/png", "image/webp", "model/gltf-binary"]
+    allowed_file_types: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "image": ["image/jpeg", "image/png", "image/webp"],
+            "model": ["model/stl", "application/octet-stream"],
+        }
     )
     max_image_resolution: tuple = (4096, 4096)  # width, height
 
 
 @dataclass
-class ProcessingResult:
+class ModelProcessingOutput:
+    generated_image_paths: list[Path]
+    original_file_path: Path
+
+
+@dataclass
+class ProcessingResult(Generic[T]):
     processor_name: str
     success: bool
-    output_path: Optional[Path] = None
+    output_path: Optional[T] = None
     error_message: Optional[str] = None
     metadata: dict = field(default_factory=dict)
 
 
 class BaseProcessor(abc.ABC):
     @abc.abstractmethod
-    def process(self, context: AssetContext) -> ProcessingResult:
+    def process(self, context: AssetContext, additional_info: dict = {}) -> ProcessingResult:
         """
         Transforms the asset.
         Returns the path to the NEW file (or the same path if modified in place).
@@ -293,6 +320,13 @@ class IndexListingEvent(BaseEvent):
     listing_id: str
 
 
+class DeadLetterEvent(BaseEvent):
+    topic: str
+    original_event: dict
+    reason: str
+    latest_error: Optional[str] = None
+
+
 # Message Handler Type Hint
 class IncomingMessage(abc.ABC):
     data: Dict[str, Any]
@@ -331,11 +365,23 @@ class EventBus(abc.ABC):
 
 class ListingRepository(abc.ABC):
     @abc.abstractmethod
-    async def complete_file_validation(self, file_id: str, listing_id: str, new_file_key: str | None) -> bool:
+    async def complete_file_validation(
+        self,
+        file_id: str,
+        listing_id: str,
+        new_file_key: str | None,
+        generated_image_paths: list[str] = [],
+        file_warning: str | None = None,
+        metadata: dict = {},
+    ) -> bool:
         """
         Atomically updates file status and checks if listing is complete.
         Returns True if the listing was just activated.
         """
+        pass
+
+    @abc.abstractmethod
+    async def mark_file_invalid(self, file_id: str, error: str) -> None:
         pass
 
     @abc.abstractmethod

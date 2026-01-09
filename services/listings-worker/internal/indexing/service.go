@@ -12,16 +12,18 @@ import (
 
 // Handles the business logic
 type svc struct {
-	indexer Indexer
-	repo    repo.Querier
-	logger  *slog.Logger
+	indexer           Indexer
+	repo              repo.Querier
+	logger            *slog.Logger
+	publicFilesBucket string
 }
 
-func NewService(indexer Indexer, repo repo.Querier, logger *slog.Logger) *svc {
+func NewService(indexer Indexer, repo repo.Querier, logger *slog.Logger, publicFilesBucket string) *svc {
 	return &svc{
-		indexer: indexer,
-		repo:    repo,
-		logger:  logger,
+		indexer:           indexer,
+		repo:              repo,
+		logger:            logger,
+		publicFilesBucket: publicFilesBucket,
 	}
 }
 
@@ -39,7 +41,6 @@ func (s *svc) IndexListing(ctx context.Context, listingID string) error {
 	// Fetch listing from DB
 	listing, err := s.repo.GetListingByID(ctx, listingUUID)
 	if err != nil {
-
 		if errors.Is(err, pgx.ErrNoRows) {
 			s.logger.Warn("Listing not found in DB (might be deleted), skipping index", "id", listingID)
 			// Return nil to Ack. We can't index what doesn't exist.
@@ -49,6 +50,14 @@ func (s *svc) IndexListing(ctx context.Context, listingID string) error {
 		s.logger.Error("Failed to fetch listing from DB", "error", err, "listing_id", listingID)
 		return err
 	}
+
+	if !listing.ThumbnailPath.Valid {
+		s.logger.Warn("Listing missing thumbnail URL, cannot index", "id", listingID)
+		return nil
+	}
+
+	// Add the location of the public-files bucket to the thumbnail path
+	listing.ThumbnailPath.String = s.publicFilesBucket + listing.ThumbnailPath.String
 
 	document := map[string]interface{}{
 		"id":              listingID,
@@ -62,8 +71,6 @@ func (s *svc) IndexListing(ctx context.Context, listingID string) error {
 		"seller_username": listing.SellerUsername,
 		"seller_name":     listing.SellerName,
 		"created_at":      listing.CreatedAt.Time.Unix(),
-
-		// Add other relevant fields
 	}
 
 	if err := s.indexer.Upsert(ctx, "listings", document); err != nil {

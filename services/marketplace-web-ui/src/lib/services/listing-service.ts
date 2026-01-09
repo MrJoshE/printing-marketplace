@@ -1,6 +1,6 @@
 import { MOCK_TRENDING_LISTINGS } from "@/components/listings/trending-listings";
 import { apiClient } from "@/lib/api/http";
-import { type CategoryFilter, type CreateListingRequest, type ListingSummary, type ListingViewProps } from "@/lib/api/models";
+import { type CategoryFilter, type CreateListingRequest, type IndexedListingProps, type ListingProps } from "@/lib/api/models";
 import { typesenseClient } from "../typesense/typesense";
 
 export const ListingService = {
@@ -12,7 +12,7 @@ export const ListingService = {
     });
     return data;
   },
-  async getUsersListings() : Promise<ListingViewProps[]>{
+  async getUsersListings() : Promise<ListingProps[]>{
     const { data } = await apiClient.get("/listings");
     return data;
   },
@@ -67,11 +67,11 @@ async function getListings({
       }
 
       const results = await typesenseClient
-        .collections<ListingSummary>('listings')
+        .collections<IndexedListingProps>('listings')
         .documents()
         .search(searchParameters)
 
       return results
 }
 
-const MOCK_LISTINGS: ListingSummary[] = MOCK_TRENDING_LISTINGS.concat(MOCK_TRENDING_LISTINGS).concat(MOCK_TRENDING_LISTINGS)
+const MOCK_LISTINGS: IndexedListingProps[] = MOCK_TRENDING_LISTINGS.concat(MOCK_TRENDING_LISTINGS).concat(MOCK_TRENDING_LISTINGS)

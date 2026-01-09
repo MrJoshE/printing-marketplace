@@ -38,26 +38,21 @@ tasks:
       - task: test-indexer
       - task: test-validation-worker
 
-  validation-worker-benchmark-large-image:
+  validation-worker-benchmark-cpu:
     cmds:
-      - python bench.py storage --file ./benchmark/large_image_4k.jpg --count 100
+      - python bench.py cpu --image-local ./examples/large_image_4k.jpg  --model-local ./examples/large_model.stl --count 50 -c 5
     dir: ./services/validation-worker
 
-  validation-worker-benchmark-large-image-concurrent:
+  validation-worker-benchmark-s3:
     cmds:
-      - python bench.py storage --file ./benchmark/large_image_4k.jpg --count 100 -c 5
+      - python bench.py storage --image-s3 benchmarks/large_image_4k.jpg --model-s3 benchmarks/large_model.stl --count 50 -c 5
     dir: ./services/validation-worker
 
-  validation-worker-benchmark-small-image:
+  typesense-migrate:
+    dir: ./infrastructure/typesense-migrations
     cmds:
-      - python bench.py cpu --file ./benchmark/small_image.jpg --count 50
-    dir: ./services/validation-worker
-
-  validation-worker-benchmark-small-image-concurrent:
-    cmds:
-      - python bench.py cpu --file ./benchmark/small_image.jpg --count 50 -c 2
-    dir: ./services/validation-worker
-
+      - GOOS=linux GOARCH=amd64 go build -o ../migrate_search_linux_amd64 cmd/main.go
+      - GOOS=darwin GOARCH=amd64 go build -o ../migrate_search_darwin_amd64 cmd/main.go
   generate-sqlc:
     cmds:
       - sqlc generate --file ./services/gateway/sqlc.yaml
