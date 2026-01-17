@@ -133,7 +133,6 @@ export function MarketplaceSidebar({ ...props }: React.ComponentProps<typeof Sid
                     asChild 
                     tooltip={item.title}
                     isActive={isLinkActive(item.url)}
-                    // ADDED: h-auto allows height to grow, py-3 adds the vertical padding
                     className="h-auto py-3"
                   >
                     <a href={item.url}>

@@ -167,6 +167,7 @@ export function StageGeneral({ draft, update, onNext }: Props) {
         </div>
       </div>
 
+
       <div className="pt-6 flex justify-end">
         <Button onClick={onNext} disabled={!isValid} size="lg">
           Next: Upload Assets

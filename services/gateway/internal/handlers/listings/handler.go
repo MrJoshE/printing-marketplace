@@ -102,6 +102,7 @@ func (h *ListingsHandler) DeleteListing(w http.ResponseWriter, r *http.Request) 
 
 func (h *ListingsHandler) UpdateListings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	listingID := chi.URLParam(r, "id")
 	userInfo, err := auth.GetUserInfo(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "Unauthorized access attempt", "error", err)
@@ -110,7 +111,7 @@ func (h *ListingsHandler) UpdateListings(w http.ResponseWriter, r *http.Request)
 	}
 
 	slog.DebugContext(ctx, "Updating listing", "user_id", userInfo.ID)
-	updateListingRequest := CreateListingRequest{}
+	updateListingRequest := UpdateListingRequest{}
 
 	if err := json.Read(r, &updateListingRequest); err != nil {
 		slog.WarnContext(ctx, "Invalid request body", "error", err)
@@ -118,5 +119,35 @@ func (h *ListingsHandler) UpdateListings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	_, err = h.service.UpdateListing(ctx, userInfo, listingID, &updateListingRequest)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to update listing", "error", err)
+		errors.RespondError(w, r, err)
+		return
+	}
+
 	json.Write(w, http.StatusOK, nil)
+}
+
+// Unauthorized API so we need to make sure there is an API Key check and there is a rate limiter in front of this
+func (h *ListingsHandler) GetListingByID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	listingID := chi.URLParam(r, "id")
+	if listingID == "" {
+		slog.WarnContext(ctx, "Missing listing ID in request")
+		errors.RespondError(w, r, errors.New(errors.ErrInvalidInput, "Listing ID is required", nil))
+		return
+	}
+
+	slog.DebugContext(ctx, "Fetching listing by ID", "listing_id", listingID)
+
+	listing, err := h.service.GetListingByID(ctx, listingID)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to fetch listing by ID", "error", err)
+		errors.RespondError(w, r, err)
+		return
+	}
+
+	json.Write(w, http.StatusOK, listing)
+
 }

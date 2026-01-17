@@ -52,53 +52,58 @@ func (q *Queries) GetFilesByListingID(ctx context.Context, listingID pgtype.UUID
 
 const getListingByID = `-- name: GetListingByID :one
 SELECT 
-    id, 
-    seller_name, 
-    seller_username, 
-    user_id, 
-    title, 
-    description,
-    price_min_unit,
-    currency,
-    categories,
-    license,
-    thumbnail_path,
-    created_at
+    id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at
 FROM listings 
 WHERE id = $1 AND deleted_at IS NULL
 `
 
-type GetListingByIDRow struct {
-	ID             pgtype.UUID        `json:"id"`
-	SellerName     string             `json:"seller_name"`
-	SellerUsername string             `json:"seller_username"`
-	UserID         pgtype.UUID        `json:"user_id"`
-	Title          string             `json:"title"`
-	Description    pgtype.Text        `json:"description"`
-	PriceMinUnit   pgtype.Numeric     `json:"price_min_unit"`
-	Currency       string             `json:"currency"`
-	Categories     []string           `json:"categories"`
-	License        string             `json:"license"`
-	ThumbnailPath  pgtype.Text        `json:"thumbnail_path"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) GetListingByID(ctx context.Context, id pgtype.UUID) (GetListingByIDRow, error) {
+func (q *Queries) GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, error) {
 	row := q.db.QueryRow(ctx, getListingByID, id)
-	var i GetListingByIDRow
+	var i Listing
 	err := row.Scan(
 		&i.ID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
-		&i.UserID,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
 		&i.Currency,
 		&i.Categories,
 		&i.License,
+		&i.ClientID,
+		&i.TraceID,
 		&i.ThumbnailPath,
+		&i.LastIndexedAt,
+		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

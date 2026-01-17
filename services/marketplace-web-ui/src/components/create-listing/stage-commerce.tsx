@@ -25,8 +25,8 @@ import { useEffect, useMemo } from "react";
 // Update interface to include currency if not already in your ListingDraft
 // Make sure your useListingDraft hook provides 'currency'
 interface Props {
-  draft: ListingDraft & { currency?: "usd" | "gbp" }; 
-  update: (d: Partial<ListingDraft> & { currency?: "usd" | "gbp" }) => void;
+  draft: ListingDraft & { currency?: string}; 
+  update: (d: Partial<ListingDraft> & { currency?: string}) => void;
   onPublish: () => void;
   onBack: () => void;
   isSubmitting: boolean;
@@ -46,12 +46,12 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
   // Force Free state on mount if paid features are disabled
   useEffect(() => {
     if (!PAID_LISTINGS_ENABLED && !isFree) {
-        update({ isFree: true, price: 0.00, license: "open" });
+        update({ isFree: true, priceMinUnits: 0.00, license: "open" });
     }
   }, [PAID_LISTINGS_ENABLED, isFree, update]);
 
   // --- Financial Logic ---
-  const price = draft.price || 0.00;
+  const price = draft.priceMinUnits || 0.00;
 
   const financials = useMemo(() => {
     // 5% Platform Fee
@@ -84,14 +84,14 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
     
     // Allow empty string to let user delete everything
     if (val === "") {
-        update({ price: 0 }); // or undefined if your type allows
+        update({ priceMinUnits: 0 }); // or undefined if your type allows
         return;
     }
 
     // Regex to allow only 2 decimal places
     if (!/^\d*\.?\d{0,2}$/.test(val)) return;
 
-    update({ price: parseFloat(val) });
+    update({ priceMinUnits: parseFloat(val) });
   };
 
   const handleFreeToggle = (checked: boolean) => {
@@ -103,7 +103,7 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
 
     update({ 
         isFree: checked, 
-        price: checked ? 0 : draft.price,
+        priceMinUnits: checked ? 0 : draft.priceMinUnits,
         license: newLicense
     });
   };
@@ -111,7 +111,7 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
   const handleLicenseSelect = (id: string) => {
     // Prevent selecting "Open/CC" for paid items if that's your business rule
     // (Optional: Depends on if you allow selling Open Source items)
-    update({ license: id as any });
+    update({ license: id as any  });
   };
 
   const LICENSES = [
@@ -123,7 +123,7 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
         bg: "bg-blue-500/10",
         disabled: false, // Always available
         description: "Strictly for personal use. Buyers can print the model but cannot sell the physical prints or share the digital file.",
-        features: ["Private Use Only", "No Selling Prints", "No Remixing"]
+        features: ["Private Use Only", "No Selling Prints"]
     },
     {
         id: "commercial",
@@ -133,17 +133,17 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
         bg: "bg-emerald-500/10",
         disabled: false, // Always available
         description: "Buyers purchase the right to sell physical prints of this model. The digital file itself cannot be resold.",
-        features: ["Sell Physical Prints", "No Reselling File", "Higher Value"]
+        features: ["Sell Physical Prints", "No Reselling File"]
     },
     {
         id: "open",
-        title: "Creative Commons (Attribute)",
+        title: "Open (Attribute)",
         icon: Globe,
         color: "text-purple-500",
         bg: "bg-purple-500/10",
         disabled: !isFree, // Only available for free items? (Optional rule)
-        description: "Open source. Others can remix, share, and use your work commercially as long as they credit you.",
-        features: ["Remixing Allowed", "Sharing Allowed", "Requires Credit"]
+        description: "Others can remix, share, and use your work commercially as long as they credit you.",
+        features: ["Sharing Allowed", "Requires Credit"]
     }
   ];
 
@@ -222,7 +222,7 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
                                 step="0.01"
                                 className="pl-9 text-lg font-medium" 
                                 placeholder="0.00" 
-                                value={draft.price === 0 && isFree ? "" : draft.price} 
+                                value={draft.priceMinUnits === 0 && isFree ? "" : draft.priceMinUnits} 
                                 onChange={handlePriceChange}
                                 disabled={isFree || !PAID_LISTINGS_ENABLED}
                             />
@@ -332,6 +332,18 @@ export function StageCommerce({ draft, update, onPublish, onBack, isSubmitting, 
             })}
         </div>
       </div>
+
+       {/* 2. Customisation SECTION */}
+        <div className="space-y-2 p-4 border rounded-md border-muted bg-muted/20 flex items-center justify-between">
+            <div className="space-y-1">
+                <Label htmlFor="is-nsfw">Remixing Allowed?</Label>
+                <p className="text-xs text-muted-foreground">Allow others to remix your listing, once set this cannot be changed.</p>
+            </div>
+            <Switch 
+                checked={draft.isRemixingAllowed}
+                onCheckedChange={(c) => update({ isRemixingAllowed: c })}
+            />
+        </div>
 
       {/* ERROR ALERT */}
       {apiError && (

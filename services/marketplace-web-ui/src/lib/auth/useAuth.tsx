@@ -10,7 +10,7 @@ export interface User {
 
 export interface AuthContextType {
   isAuthenticated: boolean;
-  isLoading: boolean; // <--- ADDED THIS
+  isLoading: boolean;
   token: string | undefined;
   user: User | null;
   login: () => void;
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider value={{ 
         isAuthenticated, 
-        isLoading, // <--- Pass it down
+        isLoading,
         token: keycloak.token, 
         user, 
         login, 

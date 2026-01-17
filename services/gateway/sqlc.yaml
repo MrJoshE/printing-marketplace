@@ -10,4 +10,8 @@ sql:
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_interface: true # Generate interfaces for easier mocking in tests
-        emit_prepared_queries: true
+        emit_prepared_queries: true # Note to self, this should be turned off if we are using PgBouncer with transaction pooling
+        overrides:
+          # Convert price (cents) directly to int64
+          - column: "listings.price_min_unit"
+            go_type: "int64"

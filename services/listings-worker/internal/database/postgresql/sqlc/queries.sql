@@ -1,17 +1,6 @@
 -- name: GetListingByID :one
 SELECT 
-    id, 
-    seller_name, 
-    seller_username, 
-    user_id, 
-    title, 
-    description,
-    price_min_unit,
-    currency,
-    categories,
-    license,
-    thumbnail_path,
-    created_at
+    *
 FROM listings 
 WHERE id = $1 AND deleted_at IS NULL;
 

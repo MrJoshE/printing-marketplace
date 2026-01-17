@@ -12,7 +12,7 @@ import (
 
 type Querier interface {
 	GetFilesByListingID(ctx context.Context, listingID pgtype.UUID) ([]ListingFile, error)
-	GetListingByID(ctx context.Context, id pgtype.UUID) (GetListingByIDRow, error)
+	GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, error)
 	// The worker calls this AFTER successfully pushing to Typesense
 	MarkListingAsIndexed(ctx context.Context, id pgtype.UUID) error
 }

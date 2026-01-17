@@ -80,7 +80,7 @@ function CreateListingFlow() {
         return;
     }
 
-    const finalPrice = draft.isFree ? 0 : Number(draft.price);
+    const finalPrice = draft.isFree ? 0 : Number(draft.priceMinUnits);
 
     const data = {
       idempotencyKey: draftId,
@@ -89,7 +89,7 @@ function CreateListingFlow() {
           ...galleryFiles.map(f => ({type: "image", file: f.file, size: f.size})),
            ...productFiles.map(f => ({type: "model", file: f.file, size: f.size}))
         ],
-        price: finalPrice,
+        price_min_unit: finalPrice,
     };
 
     mutate(data, {

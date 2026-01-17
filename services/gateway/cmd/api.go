@@ -88,21 +88,30 @@ func (app *application) mount() http.Handler {
 
 	eventHandler := events.NewEventHandler(app.eventBus, app.config.events, app.logger)
 
-	listingsService := listings.NewListingsService(repo, app.conn, app.logger, app.storage, eventHandler, app.config.publicFilesUrl)
+	listingsService := listings.NewListingsService(repo, app.conn, app.logger, app.storage, eventHandler, app.cache, app.config.publicFilesUrl)
 	listingsHandler := listings.NewListingsHandler(listingsService)
 
 	r.Group(func(r chi.Router) {
-		// Authenticated routes
-		r.Use(app.authenticator.Middleware)
-		r.Use(idempotency.Idempotency(idempotencyStore))
+		// Public routes
 		r.Use(middleware.Recoverer)
 
+		r.Get("/listings/{id}", listingsHandler.GetListingByID)
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Recoverer)
+		r.Use(idempotency.Idempotency(idempotencyStore))
+
+		// Authenticated routes
+		r.Use(app.authenticator.Middleware)
 		r.Post("/files/presign", filesHandler.PresignUpload)
 
 		r.Post("/listings", listingsHandler.CreateListing)
 		r.Get("/listings", listingsHandler.GetListingsForUser)
 		r.Delete("/listings/{id}", listingsHandler.DeleteListing)
 		r.Put("/listings/{id}", listingsHandler.UpdateListings)
+
+		// Needs rate limiting in future
 
 		r.Get("/authenticated", func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("you are authenticated!"))

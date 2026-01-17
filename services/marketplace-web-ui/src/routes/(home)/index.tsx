@@ -5,12 +5,9 @@ import { PublicListings } from '@/components/listings/public-listings'
 import { TrendingSection } from '@/components/listings/trending-listings'
 import { SiteHeader } from '@/components/marketplace-header'
 import type { CategoryFilter } from '@/lib/api/models'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import React from 'react'
 
-const queryClient = new QueryClient()
-const trendingListingsQueryClient = new QueryClient()
 export const Route = createFileRoute('/(home)/')({
   component: MarketplacePage,
 })
@@ -34,9 +31,8 @@ function MarketplacePage() {
         <Categories selected={categories} onSelect={setCategories} />  
 
         {/* Trending */}
-        <QueryClientProvider client={trendingListingsQueryClient}>
-          <TrendingSection/>
-        </QueryClientProvider>
+        <TrendingSection/>
+
         
 
         <FeaturedBanner 
@@ -47,9 +43,7 @@ function MarketplacePage() {
           primaryAction={{ label: 'View Josh\'s Store', onClick: () => {}}}
         />
 
-        <QueryClientProvider client={queryClient}>
-            <PublicListings />
-        </QueryClientProvider>
+          <PublicListings />
 
       </div>
     </div>

@@ -11,19 +11,25 @@ import (
 )
 
 type Querier interface {
-	// Note: 'categories' param must be passed as a string slice (text[]) in Go
+	// Used by the worker to save rendered images or derived models
+	CreateGeneratedFile(ctx context.Context, arg CreateGeneratedFileParams) (ListingFile, error)
+	// Note: 'categories' and 'recommended_materials' must be passed as string slices (text[]) in Go
 	CreateListing(ctx context.Context, arg CreateListingParams) (Listing, error)
+	// Used for initial user uploads
 	CreateListingFile(ctx context.Context, arg CreateListingFileParams) (ListingFile, error)
 	GetFilesByListingID(ctx context.Context, listingID pgtype.UUID) ([]ListingFile, error)
 	GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, error)
 	GetListingByIDAdmin(ctx context.Context, id pgtype.UUID) (Listing, error)
-	GetListingsByUserID(ctx context.Context, userID pgtype.UUID) ([]GetListingsByUserIDRow, error)
+	GetListingByIDWithFiles(ctx context.Context, id pgtype.UUID) (GetListingByIDWithFilesRow, error)
+	GetListingsBySellerID(ctx context.Context, sellerID pgtype.UUID) ([]GetListingsBySellerIDRow, error)
 	// Finds all listings that are new OR have been updated since the last sync
 	GetListingsForSync(ctx context.Context, limit int32) ([]Listing, error)
 	// The worker calls this AFTER successfully pushing to Typesense
 	MarkListingAsIndexed(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteFile(ctx context.Context, id pgtype.UUID) error
 	SoftDeleteListing(ctx context.Context, arg SoftDeleteListingParams) (Listing, error)
+	// Worker updates status (e.g., PENDING -> VALID)
+	UpdateFileStatus(ctx context.Context, arg UpdateFileStatusParams) error
 	UpdateListing(ctx context.Context, arg UpdateListingParams) (Listing, error)
 }
 

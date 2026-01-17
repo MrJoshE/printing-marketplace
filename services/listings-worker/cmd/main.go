@@ -65,7 +65,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	// 5. Initialize Search Indexer (Typesense)
-	indexer := indexing.NewInMemoryIndexer() //indexing.NewClient(cfg.TypesenseKey, cfg.TypesenseURL)
+	indexer := indexing.NewClient(cfg.TypesenseKey, cfg.TypesenseURL)
 
 	// 6. Initialize Service Layer
 	// Wire up the SQLC repository and the Indexer

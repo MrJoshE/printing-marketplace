@@ -135,7 +135,7 @@ export function ListingGrid({
       ) : (
         /* --- GRID LAYOUT (Default) --- */
         <div className={cn(
-            "grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 duration-200" , 
+            "grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-5 duration-200 animate-in fade-in" , 
             className
         )}>
           {listings.map((listing) => (

@@ -11,36 +11,139 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createGeneratedFile = `-- name: CreateGeneratedFile :one
+INSERT INTO listing_files (
+    listing_id, file_path, file_type, file_size, metadata, status, is_generated, source_file_id
+) VALUES (
+    $1, $2, $3, $4, $5, $6, true, $7
+) RETURNING id, listing_id, file_path, file_type, file_size, metadata, status, error_message, is_generated, source_file_id, created_at, updated_at, deleted_at
+`
+
+type CreateGeneratedFileParams struct {
+	ListingID    pgtype.UUID    `json:"listing_id"`
+	FilePath     string         `json:"file_path"`
+	FileType     FileType       `json:"file_type"`
+	FileSize     pgtype.Int8    `json:"file_size"`
+	Metadata     []byte         `json:"metadata"`
+	Status       NullFileStatus `json:"status"`
+	SourceFileID pgtype.UUID    `json:"source_file_id"`
+}
+
+// Used by the worker to save rendered images or derived models
+func (q *Queries) CreateGeneratedFile(ctx context.Context, arg CreateGeneratedFileParams) (ListingFile, error) {
+	row := q.db.QueryRow(ctx, createGeneratedFile,
+		arg.ListingID,
+		arg.FilePath,
+		arg.FileType,
+		arg.FileSize,
+		arg.Metadata,
+		arg.Status,
+		arg.SourceFileID,
+	)
+	var i ListingFile
+	err := row.Scan(
+		&i.ID,
+		&i.ListingID,
+		&i.FilePath,
+		&i.FileType,
+		&i.FileSize,
+		&i.Metadata,
+		&i.Status,
+		&i.ErrorMessage,
+		&i.IsGenerated,
+		&i.SourceFileID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const createListing = `-- name: CreateListing :one
 INSERT INTO listings (
-    user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, status
+    seller_id, 
+    seller_name, 
+    seller_username, 
+    seller_verified, 
+    
+    title, 
+    description, 
+    price_min_unit, 
+    currency, 
+    categories, 
+    license, 
+    
+    client_id, 
+    trace_id, 
+    thumbnail_path, 
+    status,
+
+    -- Remixing
+    is_remixing_allowed,
+    parent_listing_id,
+
+    -- Physical Properties
+    is_physical,
+    total_weight_grams,
+    is_assembly_required,
+    is_hardware_required,
+    hardware_required,
+    is_multicolor,
+    dimensions_mm,
+    recommended_nozzle_temp_c,
+    recommended_materials,
+    sale_price,
+
+    -- AI Info
+    is_ai_generated,
+    ai_model_name,
+
+    is_nsfw
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-) RETURNING id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29
+) RETURNING id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at
 `
 
 type CreateListingParams struct {
-	UserID         pgtype.UUID       `json:"user_id"`
-	SellerName     string            `json:"seller_name"`
-	SellerUsername string            `json:"seller_username"`
-	Title          string            `json:"title"`
-	Description    pgtype.Text       `json:"description"`
-	PriceMinUnit   pgtype.Numeric    `json:"price_min_unit"`
-	Currency       string            `json:"currency"`
-	Categories     []string          `json:"categories"`
-	License        string            `json:"license"`
-	ClientID       string            `json:"client_id"`
-	TraceID        string            `json:"trace_id"`
-	ThumbnailPath  pgtype.Text       `json:"thumbnail_path"`
-	Status         NullListingStatus `json:"status"`
+	SellerID               pgtype.UUID       `json:"seller_id"`
+	SellerName             string            `json:"seller_name"`
+	SellerUsername         string            `json:"seller_username"`
+	SellerVerified         bool              `json:"seller_verified"`
+	Title                  string            `json:"title"`
+	Description            pgtype.Text       `json:"description"`
+	PriceMinUnit           int64             `json:"price_min_unit"`
+	Currency               string            `json:"currency"`
+	Categories             []string          `json:"categories"`
+	License                string            `json:"license"`
+	ClientID               string            `json:"client_id"`
+	TraceID                string            `json:"trace_id"`
+	ThumbnailPath          pgtype.Text       `json:"thumbnail_path"`
+	Status                 NullListingStatus `json:"status"`
+	IsRemixingAllowed      bool              `json:"is_remixing_allowed"`
+	ParentListingID        pgtype.UUID       `json:"parent_listing_id"`
+	IsPhysical             bool              `json:"is_physical"`
+	TotalWeightGrams       pgtype.Int4       `json:"total_weight_grams"`
+	IsAssemblyRequired     bool              `json:"is_assembly_required"`
+	IsHardwareRequired     bool              `json:"is_hardware_required"`
+	HardwareRequired       []string          `json:"hardware_required"`
+	IsMulticolor           bool              `json:"is_multicolor"`
+	DimensionsMm           []byte            `json:"dimensions_mm"`
+	RecommendedNozzleTempC pgtype.Int4       `json:"recommended_nozzle_temp_c"`
+	RecommendedMaterials   []string          `json:"recommended_materials"`
+	SalePrice              pgtype.Numeric    `json:"sale_price"`
+	IsAiGenerated          bool              `json:"is_ai_generated"`
+	AiModelName            pgtype.Text       `json:"ai_model_name"`
+	IsNsfw                 bool              `json:"is_nsfw"`
 }
 
-// Note: 'categories' param must be passed as a string slice (text[]) in Go
+// Note: 'categories' and 'recommended_materials' must be passed as string slices (text[]) in Go
 func (q *Queries) CreateListing(ctx context.Context, arg CreateListingParams) (Listing, error) {
 	row := q.db.QueryRow(ctx, createListing,
-		arg.UserID,
+		arg.SellerID,
 		arg.SellerName,
 		arg.SellerUsername,
+		arg.SellerVerified,
 		arg.Title,
 		arg.Description,
 		arg.PriceMinUnit,
@@ -51,13 +154,29 @@ func (q *Queries) CreateListing(ctx context.Context, arg CreateListingParams) (L
 		arg.TraceID,
 		arg.ThumbnailPath,
 		arg.Status,
+		arg.IsRemixingAllowed,
+		arg.ParentListingID,
+		arg.IsPhysical,
+		arg.TotalWeightGrams,
+		arg.IsAssemblyRequired,
+		arg.IsHardwareRequired,
+		arg.HardwareRequired,
+		arg.IsMulticolor,
+		arg.DimensionsMm,
+		arg.RecommendedNozzleTempC,
+		arg.RecommendedMaterials,
+		arg.SalePrice,
+		arg.IsAiGenerated,
+		arg.AiModelName,
+		arg.IsNsfw,
 	)
 	var i Listing
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
@@ -69,6 +188,30 @@ func (q *Queries) CreateListing(ctx context.Context, arg CreateListingParams) (L
 		&i.ThumbnailPath,
 		&i.LastIndexedAt,
 		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -78,9 +221,9 @@ func (q *Queries) CreateListing(ctx context.Context, arg CreateListingParams) (L
 
 const createListingFile = `-- name: CreateListingFile :one
 INSERT INTO listing_files (
-    listing_id, file_path, file_type, file_size, metadata, status
+    listing_id, file_path, file_type, file_size, metadata, status, is_generated
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, false
 ) RETURNING id, listing_id, file_path, file_type, file_size, metadata, status, error_message, is_generated, source_file_id, created_at, updated_at, deleted_at
 `
 
@@ -93,6 +236,7 @@ type CreateListingFileParams struct {
 	Status    NullFileStatus `json:"status"`
 }
 
+// Used for initial user uploads
 func (q *Queries) CreateListingFile(ctx context.Context, arg CreateListingFileParams) (ListingFile, error) {
 	row := q.db.QueryRow(ctx, createListingFile,
 		arg.ListingID,
@@ -161,7 +305,7 @@ func (q *Queries) GetFilesByListingID(ctx context.Context, listingID pgtype.UUID
 }
 
 const getListingByID = `-- name: GetListingByID :one
-SELECT id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at FROM listings 
+SELECT id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at FROM listings 
     WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -170,9 +314,10 @@ func (q *Queries) GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, 
 	var i Listing
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
@@ -184,6 +329,30 @@ func (q *Queries) GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, 
 		&i.ThumbnailPath,
 		&i.LastIndexedAt,
 		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -192,7 +361,7 @@ func (q *Queries) GetListingByID(ctx context.Context, id pgtype.UUID) (Listing, 
 }
 
 const getListingByIDAdmin = `-- name: GetListingByIDAdmin :one
-SELECT id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at FROM listings WHERE id = $1
+SELECT id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at FROM listings WHERE id = $1
 `
 
 func (q *Queries) GetListingByIDAdmin(ctx context.Context, id pgtype.UUID) (Listing, error) {
@@ -200,9 +369,10 @@ func (q *Queries) GetListingByIDAdmin(ctx context.Context, id pgtype.UUID) (List
 	var i Listing
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
@@ -214,6 +384,30 @@ func (q *Queries) GetListingByIDAdmin(ctx context.Context, id pgtype.UUID) (List
 		&i.ThumbnailPath,
 		&i.LastIndexedAt,
 		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -221,9 +415,9 @@ func (q *Queries) GetListingByIDAdmin(ctx context.Context, id pgtype.UUID) (List
 	return i, err
 }
 
-const getListingsByUserID = `-- name: GetListingsByUserID :many
+const getListingByIDWithFiles = `-- name: GetListingByIDWithFiles :one
 SELECT 
-    l.id, l.user_id, l.seller_name, l.seller_username, l.title, l.description, l.price_min_unit, l.currency, l.categories, l.license, l.client_id, l.trace_id, l.thumbnail_path, l.last_indexed_at, l.status, l.created_at, l.updated_at, l.deleted_at,
+    l.id, l.seller_id, l.seller_name, l.seller_username, l.seller_verified, l.title, l.description, l.price_min_unit, l.currency, l.categories, l.license, l.client_id, l.trace_id, l.thumbnail_path, l.last_indexed_at, l.status, l.is_remixing_allowed, l.parent_listing_id, l.is_physical, l.total_weight_grams, l.is_assembly_required, l.is_hardware_required, l.hardware_required, l.is_multicolor, l.dimensions_mm, l.recommended_nozzle_temp_c, l.recommended_materials, l.is_ai_generated, l.ai_model_name, l.likes_count, l.downloads_count, l.comments_count, l.is_sale_active, l.sale_price, l.sale_name, l.sale_end_timestamp, l.seller_rating_average, l.seller_total_ratings, l.seller_total_sales, l.is_nsfw, l.created_at, l.updated_at, l.deleted_at,
     COALESCE(
         json_agg(
             json_build_object(
@@ -242,47 +436,198 @@ SELECT
     )::jsonb AS files
 FROM listings l
 LEFT JOIN listing_files f ON l.id = f.listing_id AND f.deleted_at IS NULL
-WHERE l.user_id = $1 AND l.deleted_at IS NULL
+WHERE l.id = $1 AND l.deleted_at IS NULL
 GROUP BY l.id
 ORDER BY l.created_at DESC
 `
 
-type GetListingsByUserIDRow struct {
-	ID             pgtype.UUID        `json:"id"`
-	UserID         pgtype.UUID        `json:"user_id"`
-	SellerName     string             `json:"seller_name"`
-	SellerUsername string             `json:"seller_username"`
-	Title          string             `json:"title"`
-	Description    pgtype.Text        `json:"description"`
-	PriceMinUnit   pgtype.Numeric     `json:"price_min_unit"`
-	Currency       string             `json:"currency"`
-	Categories     []string           `json:"categories"`
-	License        string             `json:"license"`
-	ClientID       string             `json:"client_id"`
-	TraceID        string             `json:"trace_id"`
-	ThumbnailPath  pgtype.Text        `json:"thumbnail_path"`
-	LastIndexedAt  pgtype.Timestamptz `json:"last_indexed_at"`
-	Status         NullListingStatus  `json:"status"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
-	Files          []byte             `json:"files"`
+type GetListingByIDWithFilesRow struct {
+	ID                     pgtype.UUID        `json:"id"`
+	SellerID               pgtype.UUID        `json:"seller_id"`
+	SellerName             string             `json:"seller_name"`
+	SellerUsername         string             `json:"seller_username"`
+	SellerVerified         bool               `json:"seller_verified"`
+	Title                  string             `json:"title"`
+	Description            pgtype.Text        `json:"description"`
+	PriceMinUnit           int64              `json:"price_min_unit"`
+	Currency               string             `json:"currency"`
+	Categories             []string           `json:"categories"`
+	License                string             `json:"license"`
+	ClientID               string             `json:"client_id"`
+	TraceID                string             `json:"trace_id"`
+	ThumbnailPath          pgtype.Text        `json:"thumbnail_path"`
+	LastIndexedAt          pgtype.Timestamptz `json:"last_indexed_at"`
+	Status                 NullListingStatus  `json:"status"`
+	IsRemixingAllowed      bool               `json:"is_remixing_allowed"`
+	ParentListingID        pgtype.UUID        `json:"parent_listing_id"`
+	IsPhysical             bool               `json:"is_physical"`
+	TotalWeightGrams       pgtype.Int4        `json:"total_weight_grams"`
+	IsAssemblyRequired     bool               `json:"is_assembly_required"`
+	IsHardwareRequired     bool               `json:"is_hardware_required"`
+	HardwareRequired       []string           `json:"hardware_required"`
+	IsMulticolor           bool               `json:"is_multicolor"`
+	DimensionsMm           []byte             `json:"dimensions_mm"`
+	RecommendedNozzleTempC pgtype.Int4        `json:"recommended_nozzle_temp_c"`
+	RecommendedMaterials   []string           `json:"recommended_materials"`
+	IsAiGenerated          bool               `json:"is_ai_generated"`
+	AiModelName            pgtype.Text        `json:"ai_model_name"`
+	LikesCount             pgtype.Int4        `json:"likes_count"`
+	DownloadsCount         pgtype.Int4        `json:"downloads_count"`
+	CommentsCount          pgtype.Int4        `json:"comments_count"`
+	IsSaleActive           bool               `json:"is_sale_active"`
+	SalePrice              pgtype.Numeric     `json:"sale_price"`
+	SaleName               pgtype.Text        `json:"sale_name"`
+	SaleEndTimestamp       pgtype.Timestamptz `json:"sale_end_timestamp"`
+	SellerRatingAverage    pgtype.Numeric     `json:"seller_rating_average"`
+	SellerTotalRatings     pgtype.Int4        `json:"seller_total_ratings"`
+	SellerTotalSales       pgtype.Int4        `json:"seller_total_sales"`
+	IsNsfw                 bool               `json:"is_nsfw"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt              pgtype.Timestamptz `json:"deleted_at"`
+	Files                  []byte             `json:"files"`
 }
 
-func (q *Queries) GetListingsByUserID(ctx context.Context, userID pgtype.UUID) ([]GetListingsByUserIDRow, error) {
-	rows, err := q.db.Query(ctx, getListingsByUserID, userID)
+func (q *Queries) GetListingByIDWithFiles(ctx context.Context, id pgtype.UUID) (GetListingByIDWithFilesRow, error) {
+	row := q.db.QueryRow(ctx, getListingByIDWithFiles, id)
+	var i GetListingByIDWithFilesRow
+	err := row.Scan(
+		&i.ID,
+		&i.SellerID,
+		&i.SellerName,
+		&i.SellerUsername,
+		&i.SellerVerified,
+		&i.Title,
+		&i.Description,
+		&i.PriceMinUnit,
+		&i.Currency,
+		&i.Categories,
+		&i.License,
+		&i.ClientID,
+		&i.TraceID,
+		&i.ThumbnailPath,
+		&i.LastIndexedAt,
+		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Files,
+	)
+	return i, err
+}
+
+const getListingsBySellerID = `-- name: GetListingsBySellerID :many
+SELECT 
+    l.id, l.seller_id, l.seller_name, l.seller_username, l.seller_verified, l.title, l.description, l.price_min_unit, l.currency, l.categories, l.license, l.client_id, l.trace_id, l.thumbnail_path, l.last_indexed_at, l.status, l.is_remixing_allowed, l.parent_listing_id, l.is_physical, l.total_weight_grams, l.is_assembly_required, l.is_hardware_required, l.hardware_required, l.is_multicolor, l.dimensions_mm, l.recommended_nozzle_temp_c, l.recommended_materials, l.is_ai_generated, l.ai_model_name, l.likes_count, l.downloads_count, l.comments_count, l.is_sale_active, l.sale_price, l.sale_name, l.sale_end_timestamp, l.seller_rating_average, l.seller_total_ratings, l.seller_total_sales, l.is_nsfw, l.created_at, l.updated_at, l.deleted_at,
+    COALESCE(
+        json_agg(
+            json_build_object(
+                'id', f.id,
+                'file_path', f.file_path,
+                'file_type', f.file_type,
+                'status', f.status,
+                'error_message', f.error_message,
+                'is_generated', f.is_generated,
+                'source_file_id', f.source_file_id,
+                'size', f.file_size,
+                'metadata', f.metadata
+            )
+        ) FILTER (WHERE f.id IS NOT NULL), 
+        '[]'
+    )::jsonb AS files
+FROM listings l
+LEFT JOIN listing_files f ON l.id = f.listing_id AND f.deleted_at IS NULL
+WHERE l.seller_id = $1 AND l.deleted_at IS NULL
+GROUP BY l.id
+ORDER BY l.created_at DESC
+`
+
+type GetListingsBySellerIDRow struct {
+	ID                     pgtype.UUID        `json:"id"`
+	SellerID               pgtype.UUID        `json:"seller_id"`
+	SellerName             string             `json:"seller_name"`
+	SellerUsername         string             `json:"seller_username"`
+	SellerVerified         bool               `json:"seller_verified"`
+	Title                  string             `json:"title"`
+	Description            pgtype.Text        `json:"description"`
+	PriceMinUnit           int64              `json:"price_min_unit"`
+	Currency               string             `json:"currency"`
+	Categories             []string           `json:"categories"`
+	License                string             `json:"license"`
+	ClientID               string             `json:"client_id"`
+	TraceID                string             `json:"trace_id"`
+	ThumbnailPath          pgtype.Text        `json:"thumbnail_path"`
+	LastIndexedAt          pgtype.Timestamptz `json:"last_indexed_at"`
+	Status                 NullListingStatus  `json:"status"`
+	IsRemixingAllowed      bool               `json:"is_remixing_allowed"`
+	ParentListingID        pgtype.UUID        `json:"parent_listing_id"`
+	IsPhysical             bool               `json:"is_physical"`
+	TotalWeightGrams       pgtype.Int4        `json:"total_weight_grams"`
+	IsAssemblyRequired     bool               `json:"is_assembly_required"`
+	IsHardwareRequired     bool               `json:"is_hardware_required"`
+	HardwareRequired       []string           `json:"hardware_required"`
+	IsMulticolor           bool               `json:"is_multicolor"`
+	DimensionsMm           []byte             `json:"dimensions_mm"`
+	RecommendedNozzleTempC pgtype.Int4        `json:"recommended_nozzle_temp_c"`
+	RecommendedMaterials   []string           `json:"recommended_materials"`
+	IsAiGenerated          bool               `json:"is_ai_generated"`
+	AiModelName            pgtype.Text        `json:"ai_model_name"`
+	LikesCount             pgtype.Int4        `json:"likes_count"`
+	DownloadsCount         pgtype.Int4        `json:"downloads_count"`
+	CommentsCount          pgtype.Int4        `json:"comments_count"`
+	IsSaleActive           bool               `json:"is_sale_active"`
+	SalePrice              pgtype.Numeric     `json:"sale_price"`
+	SaleName               pgtype.Text        `json:"sale_name"`
+	SaleEndTimestamp       pgtype.Timestamptz `json:"sale_end_timestamp"`
+	SellerRatingAverage    pgtype.Numeric     `json:"seller_rating_average"`
+	SellerTotalRatings     pgtype.Int4        `json:"seller_total_ratings"`
+	SellerTotalSales       pgtype.Int4        `json:"seller_total_sales"`
+	IsNsfw                 bool               `json:"is_nsfw"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt              pgtype.Timestamptz `json:"deleted_at"`
+	Files                  []byte             `json:"files"`
+}
+
+func (q *Queries) GetListingsBySellerID(ctx context.Context, sellerID pgtype.UUID) ([]GetListingsBySellerIDRow, error) {
+	rows, err := q.db.Query(ctx, getListingsBySellerID, sellerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetListingsByUserIDRow
+	var items []GetListingsBySellerIDRow
 	for rows.Next() {
-		var i GetListingsByUserIDRow
+		var i GetListingsBySellerIDRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
+			&i.SellerID,
 			&i.SellerName,
 			&i.SellerUsername,
+			&i.SellerVerified,
 			&i.Title,
 			&i.Description,
 			&i.PriceMinUnit,
@@ -294,6 +639,30 @@ func (q *Queries) GetListingsByUserID(ctx context.Context, userID pgtype.UUID) (
 			&i.ThumbnailPath,
 			&i.LastIndexedAt,
 			&i.Status,
+			&i.IsRemixingAllowed,
+			&i.ParentListingID,
+			&i.IsPhysical,
+			&i.TotalWeightGrams,
+			&i.IsAssemblyRequired,
+			&i.IsHardwareRequired,
+			&i.HardwareRequired,
+			&i.IsMulticolor,
+			&i.DimensionsMm,
+			&i.RecommendedNozzleTempC,
+			&i.RecommendedMaterials,
+			&i.IsAiGenerated,
+			&i.AiModelName,
+			&i.LikesCount,
+			&i.DownloadsCount,
+			&i.CommentsCount,
+			&i.IsSaleActive,
+			&i.SalePrice,
+			&i.SaleName,
+			&i.SaleEndTimestamp,
+			&i.SellerRatingAverage,
+			&i.SellerTotalRatings,
+			&i.SellerTotalSales,
+			&i.IsNsfw,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -310,7 +679,7 @@ func (q *Queries) GetListingsByUserID(ctx context.Context, userID pgtype.UUID) (
 }
 
 const getListingsForSync = `-- name: GetListingsForSync :many
-SELECT id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at FROM listings
+SELECT id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at FROM listings
 WHERE (last_indexed_at IS NULL OR updated_at > last_indexed_at)
 LIMIT $1
 `
@@ -327,9 +696,10 @@ func (q *Queries) GetListingsForSync(ctx context.Context, limit int32) ([]Listin
 		var i Listing
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
+			&i.SellerID,
 			&i.SellerName,
 			&i.SellerUsername,
+			&i.SellerVerified,
 			&i.Title,
 			&i.Description,
 			&i.PriceMinUnit,
@@ -341,6 +711,30 @@ func (q *Queries) GetListingsForSync(ctx context.Context, limit int32) ([]Listin
 			&i.ThumbnailPath,
 			&i.LastIndexedAt,
 			&i.Status,
+			&i.IsRemixingAllowed,
+			&i.ParentListingID,
+			&i.IsPhysical,
+			&i.TotalWeightGrams,
+			&i.IsAssemblyRequired,
+			&i.IsHardwareRequired,
+			&i.HardwareRequired,
+			&i.IsMulticolor,
+			&i.DimensionsMm,
+			&i.RecommendedNozzleTempC,
+			&i.RecommendedMaterials,
+			&i.IsAiGenerated,
+			&i.AiModelName,
+			&i.LikesCount,
+			&i.DownloadsCount,
+			&i.CommentsCount,
+			&i.IsSaleActive,
+			&i.SalePrice,
+			&i.SaleName,
+			&i.SaleEndTimestamp,
+			&i.SellerRatingAverage,
+			&i.SellerTotalRatings,
+			&i.SellerTotalSales,
+			&i.IsNsfw,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -381,23 +775,24 @@ func (q *Queries) SoftDeleteFile(ctx context.Context, id pgtype.UUID) error {
 const softDeleteListing = `-- name: SoftDeleteListing :one
 UPDATE listings 
     SET deleted_at = CURRENT_TIMESTAMP
-    WHERE id = $1 AND user_id = $2 -- Ensure user owns it before deleting
-    RETURNING id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at
+    WHERE id = $1 AND seller_id = $2 -- Ensure seller owns it before deleting
+    RETURNING id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at
 `
 
 type SoftDeleteListingParams struct {
-	ID     pgtype.UUID `json:"id"`
-	UserID pgtype.UUID `json:"user_id"`
+	ID       pgtype.UUID `json:"id"`
+	SellerID pgtype.UUID `json:"seller_id"`
 }
 
 func (q *Queries) SoftDeleteListing(ctx context.Context, arg SoftDeleteListingParams) (Listing, error) {
-	row := q.db.QueryRow(ctx, softDeleteListing, arg.ID, arg.UserID)
+	row := q.db.QueryRow(ctx, softDeleteListing, arg.ID, arg.SellerID)
 	var i Listing
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
@@ -409,11 +804,56 @@ func (q *Queries) SoftDeleteListing(ctx context.Context, arg SoftDeleteListingPa
 		&i.ThumbnailPath,
 		&i.LastIndexedAt,
 		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const updateFileStatus = `-- name: UpdateFileStatus :exec
+UPDATE listing_files
+SET 
+    status = $2,
+    error_message = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+type UpdateFileStatusParams struct {
+	ID           pgtype.UUID    `json:"id"`
+	Status       NullFileStatus `json:"status"`
+	ErrorMessage pgtype.Text    `json:"error_message"`
+}
+
+// Worker updates status (e.g., PENDING -> VALID)
+func (q *Queries) UpdateFileStatus(ctx context.Context, arg UpdateFileStatusParams) error {
+	_, err := q.db.Exec(ctx, updateFileStatus, arg.ID, arg.Status, arg.ErrorMessage)
+	return err
 }
 
 const updateListing = `-- name: UpdateListing :one
@@ -427,23 +867,57 @@ UPDATE listings SET
     client_id = $8,
     trace_id = $9,
     thumbnail_path = $10,
-    status = $11
+    status = $11,
+    
+    -- Update Remixing
+    is_remixing_allowed = $12,
+
+    -- Update Physical Properties
+    is_physical = $13,
+    total_weight_grams = $14,
+    is_assembly_required = $15,
+    is_hardware_required = $16,
+    hardware_required = $17,
+    is_multicolor = $18,
+    dimensions_mm = $19,
+    recommended_nozzle_temp_c = $20,
+    recommended_materials = $21,
+
+    -- Update AI Info
+    is_ai_generated = $22,
+    ai_model_name = $23,
+    
+    -- Always update timestamp
+    updated_at = CURRENT_TIMESTAMP
+
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, user_id, seller_name, seller_username, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, created_at, updated_at, deleted_at
+RETURNING id, seller_id, seller_name, seller_username, seller_verified, title, description, price_min_unit, currency, categories, license, client_id, trace_id, thumbnail_path, last_indexed_at, status, is_remixing_allowed, parent_listing_id, is_physical, total_weight_grams, is_assembly_required, is_hardware_required, hardware_required, is_multicolor, dimensions_mm, recommended_nozzle_temp_c, recommended_materials, is_ai_generated, ai_model_name, likes_count, downloads_count, comments_count, is_sale_active, sale_price, sale_name, sale_end_timestamp, seller_rating_average, seller_total_ratings, seller_total_sales, is_nsfw, created_at, updated_at, deleted_at
 `
 
 type UpdateListingParams struct {
-	ID            pgtype.UUID       `json:"id"`
-	Title         string            `json:"title"`
-	Description   pgtype.Text       `json:"description"`
-	PriceMinUnit  pgtype.Numeric    `json:"price_min_unit"`
-	Currency      string            `json:"currency"`
-	Categories    []string          `json:"categories"`
-	License       string            `json:"license"`
-	ClientID      string            `json:"client_id"`
-	TraceID       string            `json:"trace_id"`
-	ThumbnailPath pgtype.Text       `json:"thumbnail_path"`
-	Status        NullListingStatus `json:"status"`
+	ID                     pgtype.UUID       `json:"id"`
+	Title                  string            `json:"title"`
+	Description            pgtype.Text       `json:"description"`
+	PriceMinUnit           int64             `json:"price_min_unit"`
+	Currency               string            `json:"currency"`
+	Categories             []string          `json:"categories"`
+	License                string            `json:"license"`
+	ClientID               string            `json:"client_id"`
+	TraceID                string            `json:"trace_id"`
+	ThumbnailPath          pgtype.Text       `json:"thumbnail_path"`
+	Status                 NullListingStatus `json:"status"`
+	IsRemixingAllowed      bool              `json:"is_remixing_allowed"`
+	IsPhysical             bool              `json:"is_physical"`
+	TotalWeightGrams       pgtype.Int4       `json:"total_weight_grams"`
+	IsAssemblyRequired     bool              `json:"is_assembly_required"`
+	IsHardwareRequired     bool              `json:"is_hardware_required"`
+	HardwareRequired       []string          `json:"hardware_required"`
+	IsMulticolor           bool              `json:"is_multicolor"`
+	DimensionsMm           []byte            `json:"dimensions_mm"`
+	RecommendedNozzleTempC pgtype.Int4       `json:"recommended_nozzle_temp_c"`
+	RecommendedMaterials   []string          `json:"recommended_materials"`
+	IsAiGenerated          bool              `json:"is_ai_generated"`
+	AiModelName            pgtype.Text       `json:"ai_model_name"`
 }
 
 func (q *Queries) UpdateListing(ctx context.Context, arg UpdateListingParams) (Listing, error) {
@@ -459,13 +933,26 @@ func (q *Queries) UpdateListing(ctx context.Context, arg UpdateListingParams) (L
 		arg.TraceID,
 		arg.ThumbnailPath,
 		arg.Status,
+		arg.IsRemixingAllowed,
+		arg.IsPhysical,
+		arg.TotalWeightGrams,
+		arg.IsAssemblyRequired,
+		arg.IsHardwareRequired,
+		arg.HardwareRequired,
+		arg.IsMulticolor,
+		arg.DimensionsMm,
+		arg.RecommendedNozzleTempC,
+		arg.RecommendedMaterials,
+		arg.IsAiGenerated,
+		arg.AiModelName,
 	)
 	var i Listing
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.SellerID,
 		&i.SellerName,
 		&i.SellerUsername,
+		&i.SellerVerified,
 		&i.Title,
 		&i.Description,
 		&i.PriceMinUnit,
@@ -477,6 +964,30 @@ func (q *Queries) UpdateListing(ctx context.Context, arg UpdateListingParams) (L
 		&i.ThumbnailPath,
 		&i.LastIndexedAt,
 		&i.Status,
+		&i.IsRemixingAllowed,
+		&i.ParentListingID,
+		&i.IsPhysical,
+		&i.TotalWeightGrams,
+		&i.IsAssemblyRequired,
+		&i.IsHardwareRequired,
+		&i.HardwareRequired,
+		&i.IsMulticolor,
+		&i.DimensionsMm,
+		&i.RecommendedNozzleTempC,
+		&i.RecommendedMaterials,
+		&i.IsAiGenerated,
+		&i.AiModelName,
+		&i.LikesCount,
+		&i.DownloadsCount,
+		&i.CommentsCount,
+		&i.IsSaleActive,
+		&i.SalePrice,
+		&i.SaleName,
+		&i.SaleEndTimestamp,
+		&i.SellerRatingAverage,
+		&i.SellerTotalRatings,
+		&i.SellerTotalSales,
+		&i.IsNsfw,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,

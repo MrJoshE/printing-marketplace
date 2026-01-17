@@ -17,9 +17,12 @@ $$ language 'plpgsql';
 
 CREATE TABLE IF NOT EXISTS listings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL, -- Links to Keycloak User UUID
+
+    -- Seller Info
+    seller_id UUID NOT NULL, -- Links to Keycloak User UUID
     seller_name TEXT NOT NULL, 
     seller_username TEXT NOT NULL,
+    seller_verified BOOLEAN NOT NULL DEFAULT FALSE, 
     
     title TEXT NOT NULL,
     description TEXT,
@@ -32,14 +35,52 @@ CREATE TABLE IF NOT EXISTS listings (
     client_id TEXT NOT NULL, -- For multi-tenant support
     trace_id TEXT NOT NULL, -- For tracking requests through the system
 
-    -- Optimization: Store the path directly so you don't need a JOIN just to show a thumbnail
+    -- Optimization: Store the path directly to the thumbnail for quick access
     thumbnail_path TEXT, 
 
     -- Timestamp of the last time this listing was indexed, if updated_at > last_indexed_at, re-index needed
     last_indexed_at TIMESTAMP WITH TIME ZONE,
     
     status listing_status DEFAULT 'PENDING_VALIDATION',
-    
+
+    is_remixing_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+    parent_listing_id UUID REFERENCES listings(id) ON DELETE SET NULL, -- If this listing is a remix of another
+
+    -- Physical properties
+    is_physical BOOLEAN NOT NULL DEFAULT TRUE,
+    total_weight_grams INTEGER CHECK (total_weight_grams IS NULL OR total_weight_grams >= 0),
+    is_assembly_required BOOLEAN NOT NULL DEFAULT FALSE,
+    is_hardware_required BOOLEAN NOT NULL DEFAULT FALSE,
+    hardware_required TEXT[], -- E.g., ["screws", "glue"]
+    is_multicolor BOOLEAN NOT NULL DEFAULT FALSE,
+    dimensions_mm JSONB, -- {"width": 100, "height": 50, "depth": 75}
+    recommended_nozzle_temp_c INTEGER CHECK (recommended_nozzle_temp_c IS NULL OR recommended_nozzle_temp_c >= 0),
+    recommended_materials TEXT[],
+
+    -- AI generation info
+    is_ai_generated BOOLEAN NOT NULL DEFAULT FALSE,
+    ai_model_name TEXT,
+
+    -- Social Signals
+    likes_count INTEGER DEFAULT 0,
+    downloads_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0,
+
+    -- Sales & Merchandising
+    is_sale_active BOOLEAN NOT NULL DEFAULT FALSE,
+    sale_price NUMERIC(12,0) CHECK (sale_price IS NULL OR sale_price >= 0),
+    sale_name TEXT,
+    sale_end_timestamp TIMESTAMP WITH TIME ZONE,
+
+    -- Seller Reputation Snapshot
+    seller_rating_average NUMERIC(3,2) CHECK (seller_rating_average IS NULL OR (seller_rating_average >= 0 AND seller_rating_average <= 5)),
+    seller_total_ratings INTEGER DEFAULT 0,
+    seller_total_sales INTEGER DEFAULT 0,
+
+    -- NSFW & Legal
+    is_nsfw BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE
@@ -78,8 +119,8 @@ CREATE INDEX idx_listings_categories ON listings USING GIN (categories);
 -- 2. Sync Worker: Delta check
 CREATE INDEX idx_listings_sync_state ON listings (updated_at) INCLUDE (last_indexed_at); 
 
--- 3. User Portfolio: Composite sort (Replaces simple user_id index)
-CREATE INDEX idx_listings_user_feed ON listings(user_id, created_at DESC) WHERE deleted_at IS NULL;
+-- 3. User Portfolio: Composite sort (Replaces simple seller_id index)
+CREATE INDEX idx_listings_user_feed ON listings(seller_id, created_at DESC) WHERE deleted_at IS NULL;
 
 -- 4. Main Feed: Status + Sort
 CREATE INDEX idx_listings_feed_optimization ON listings(status, created_at DESC) WHERE deleted_at IS NULL;
@@ -106,14 +147,14 @@ CREATE TRIGGER update_listing_files_modtime BEFORE UPDATE ON listing_files FOR E
 
 -- +goose Down
 -- +goose StatementBegin
+DROP INDEX IF EXISTS idx_listing_files_source_file_id;
+DROP INDEX IF EXISTS idx_listing_files_remaining_work;
 DROP INDEX IF EXISTS idx_listings_trace_id;
 DROP INDEX IF EXISTS idx_listing_files_listing_id;
 DROP INDEX IF EXISTS idx_listings_feed_optimization;
 DROP INDEX IF EXISTS idx_listings_user_feed;
 DROP INDEX IF EXISTS idx_listings_sync_state;
 DROP INDEX IF EXISTS idx_listings_categories;
-DROP INDEX IF EXISTS idx_listings_status_deleted;
-DROP INDEX IF EXISTS idx_listings_user_id;
 DROP TABLE IF EXISTS listing_files;
 DROP TABLE IF EXISTS listings;
 DROP TYPE IF EXISTS file_type;

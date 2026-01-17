@@ -4,6 +4,8 @@ dotenv:
 vars:
   DB_DSN: ${DB_DSN}
   MIGRATION_DIR: ./services/gateway/internal/database/postgresql/migrations
+  OS: darwin
+  ARCH: arm64
 tasks:
   # Check whether sqlc and goose are installed, install if not
 
@@ -48,11 +50,23 @@ tasks:
       - python bench.py storage --image-s3 benchmarks/large_image_4k.jpg --model-s3 benchmarks/large_model.stl --count 50 -c 5
     dir: ./services/validation-worker
 
-  typesense-migrate:
+  typesense-migrate-build:
     dir: ./infrastructure/typesense-migrations
     cmds:
       - GOOS=linux GOARCH=amd64 go build -o ../migrate_search_linux_amd64 cmd/main.go
-      - GOOS=darwin GOARCH=amd64 go build -o ../migrate_search_darwin_amd64 cmd/main.go
+      - GOOS=darwin GOARCH=arm64 go build -o ../migrate_search_darwin_arm64 cmd/main.go
+      - chmod +x ../migrate_search_*
+
+  typesense-migrate-run-mac:
+    dir: ./infrastructure/
+    cmds:
+      - ./migrate_search_darwin_arm64
+
+  typesense-migrate-run-linux:
+    dir: ./infrastructure/
+    cmds:
+      - ./migrate_search_linux_amd64
+
   generate-sqlc:
     cmds:
       - sqlc generate --file ./services/gateway/sqlc.yaml

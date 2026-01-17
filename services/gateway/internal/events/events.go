@@ -4,6 +4,11 @@ import (
 	"os"
 )
 
+type ReIndexListingEvent struct {
+	ListingID string `json:"listing_id"`
+	TraceID   string `json:"trace_id"`
+}
+
 type StartFileValidationEvent struct {
 	ListingID string `json:"listing_id"` // This is the database ID of the listing the file is associated with
 	UserID    string `json:"user_id"`    // This is the database ID of the user who uploaded the file
@@ -16,11 +21,13 @@ type StartFileValidationEvent struct {
 type EventConfig struct {
 	StartImageValidation string
 	StartModelValidation string
+	IndexListingEvent    string
 }
 
 func NewEventConfig() *EventConfig {
 	return &EventConfig{
 		StartImageValidation: os.Getenv("EVENT_VALIDATE_IMAGE_START"),
 		StartModelValidation: os.Getenv("EVENT_VALIDATE_MODEL_START"),
+		IndexListingEvent:    os.Getenv("EVENT_INDEX_LISTING"),
 	}
 }

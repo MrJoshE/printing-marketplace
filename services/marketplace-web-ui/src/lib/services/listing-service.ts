@@ -1,6 +1,7 @@
 import { MOCK_TRENDING_LISTINGS } from "@/components/listings/trending-listings";
-import { apiClient } from "@/lib/api/http";
+import { apiClient, publicRoutesApiClient } from "@/lib/api/http";
 import { type CategoryFilter, type CreateListingRequest, type IndexedListingProps, type ListingProps } from "@/lib/api/models";
+import type { SearchResponse } from "typesense/lib/Typesense/Documents";
 import { typesenseClient } from "../typesense/typesense";
 
 export const ListingService = {
@@ -24,27 +25,17 @@ export const ListingService = {
     const { data } = await apiClient.delete(`/listings/${id}`);
     return data;
   },
+  async getListingById(id: string) : Promise<ListingProps>{
+    console.log("Fetching listing by ID:", id);
+    const { data } = await publicRoutesApiClient.get(`/listings/${id}`);
+    console.log("Received listing data:", data);
+    return data;
+  },
   async getListings({
     categories, 
     query, 
     pageParam = 1
-  }: {categories: CategoryFilter[], query: string, pageParam: number}) {
-      // For now, return mock data
-      return {
-        hits: MOCK_LISTINGS.slice((pageParam - 1) * 10, pageParam * 10).map(document => ({ document })),
-        page: pageParam < Math.ceil(MOCK_LISTINGS.length / 10) ? pageParam + 1 : undefined,
-      };  
-    },
-    async getTrendingListings(){
-      return MOCK_LISTINGS;
-    }
-}
-
-async function getListings({
-    categories, 
-    query, 
-    pageParam = 1
-  }: {categories: CategoryFilter[], query: string, pageParam: number}) {
+  }: {categories: CategoryFilter[], query: string, pageParam: number}) : Promise<SearchResponse<IndexedListingProps>> {
       // 1. Construct Typesense filter string
       // Format: category:=[value1, value2]
       const activeCategories = categories
@@ -73,5 +64,21 @@ async function getListings({
 
       return results
 }
+  // async getListings({
+  //   categories, 
+  //   query, 
+  //   pageParam = 1
+  // }: {categories: CategoryFilter[], query: string, pageParam: number}) {
+  //     // For now, return mock data
+  //     return {
+  //       hits: MOCK_LISTINGS.slice((pageParam - 1) * 10, pageParam * 10).map(document => ({ document })),
+  //       page: pageParam < Math.ceil(MOCK_LISTINGS.length / 10) ? pageParam + 1 : undefined,
+  //     };  
+  //   },
+  //   async getTrendingListings(){
+  //     return MOCK_LISTINGS;
+  //   }
+}
+
 
 const MOCK_LISTINGS: IndexedListingProps[] = MOCK_TRENDING_LISTINGS.concat(MOCK_TRENDING_LISTINGS).concat(MOCK_TRENDING_LISTINGS)

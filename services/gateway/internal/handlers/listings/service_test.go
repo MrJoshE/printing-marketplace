@@ -38,6 +38,7 @@ func TestCreateListing_Success(t *testing.T) {
 		StartImageValidation: "file.image.start",
 		StartModelValidation: "file.model.start",
 	}
+	// We expect 2 publish events (one for model, one for image)
 	mockBus.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(nil).Times(2)
 	evtHandler := events.NewEventHandler(mockBus, &eventConfig, logger)
 
@@ -53,6 +54,7 @@ func TestCreateListing_Success(t *testing.T) {
 	const generatedListingID = "11111111-1111-1111-1111-111111111111"
 	const generatedFileID1 = "22222222-2222-2222-2222-222222222222"
 	const generatedFileID2 = "33333333-3333-3333-3333-333333333333"
+
 	var expectedListingUUID pgtype.UUID
 	if err := expectedListingUUID.Scan(generatedListingID); err != nil {
 		t.Fatal(err)
@@ -65,6 +67,10 @@ func TestCreateListing_Success(t *testing.T) {
 		AuthorizedParty: "Go-Test",
 	}
 
+	// Input files (as they come from the Controller/Request)
+	inputFile1Path := "2025/01/01/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/11111111-1111-1111-1111-111111111111/model/model.stl"
+	inputFile2Path := "2025/01/01/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/11111111-1111-1111-1111-111111111111/image/image.jpg"
+
 	req := &CreateListingRequest{
 		Title:        "Valid Listing",
 		Description:  "A great item",
@@ -73,113 +79,123 @@ func TestCreateListing_Success(t *testing.T) {
 		Categories:   []string{"Art"},
 		License:      "MIT",
 		Files: []CreateListingFile{
-			{Type: "model", Path: "2025/01/01/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/11111111-1111-1111-1111-111111111111/model/model.stl", Size: 1024},
-			{Type: "image", Path: "2025/01/01/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/11111111-1111-1111-1111-111111111111/image/image.jpg", Size: 500},
+			{Type: "model", Path: inputFile1Path, Size: 1024},
+			{Type: "image", Path: inputFile2Path, Size: 500},
 		},
+		// We assume defaults for the new physical/AI fields in this specific test
 	}
 
-	// 1. Expect Begin
+	// 1. Expect Begin Transaction
 	mockPool.ExpectBegin()
 
+	// 2. Expect Listing Insert
+	// Arguments must match the order in queries.sql -> CreateListing
 	mockPool.ExpectQuery(regexp.QuoteMeta(`INSERT INTO listings`)).
 		WithArgs(
-			pgxmock.AnyArg(),   // UserID
-			"test@example.com", // SellerName
-			"tester",           // SellerUsername
-			"Valid Listing",    // Title
-			pgxmock.AnyArg(),   // Description
-			pgxmock.AnyArg(),   // PriceMinUnit
-			"gbp",              // Currency
-			[]string{"Art"},    // Categories
-			"MIT",              // License
-			"Go-Test",          // ClientID
-			pgxmock.AnyArg(),   // TraceID
-			pgxmock.AnyArg(),   // ThumbnailPath
-			pgxmock.AnyArg(),   // Status
+			pgxmock.AnyArg(),   // 1. seller_id
+			"test@example.com", // 2. seller_name
+			"tester",           // 3. seller_username
+			false,              // 4. seller_verified (Default)
+
+			"Valid Listing",  // 5. title
+			pgxmock.AnyArg(), // 6. description
+			pgxmock.AnyArg(), // 7. price_min_unit
+			"gbp",            // 8. currency
+			[]string{"Art"},  // 9. categories
+			"MIT",            // 10. license
+
+			"Go-Test",        // 11. client_id
+			pgxmock.AnyArg(), // 12. trace_id
+			pgxmock.AnyArg(), // 13. thumbnail_path
+			pgxmock.AnyArg(), // 14. status
+
+			true, // 15. is_remixing_allowed (Default)
+			nil,  // 16. parent_listing_id (Default)
+
+			true,  // 17. is_physical (Default)
+			nil,   // 18. total_weight_grams
+			false, // 19. is_assembly_required
+			false, // 20. is_hardware_required
+			nil,   // 21. hardware_required
+			false, // 22. is_multicolor
+			nil,   // 23. dimensions_mm
+			nil,   // 24. recommended_nozzle_temp_c
+			nil,   // 25. recommended_materials
+
+			false, // 26. is_ai_generated
+			nil,   // 27. ai_model_name
 		).
 		WillReturnRows(pgxmock.NewRows(testutil.ListingsCols).
 			AddRow(
 				generatedListingID,
-				validUserUUID,
-				"test@example.com",
-				"tester",
-				"Valid Listing",
-				"Desc",
-				"1050",
-				"gbp",
-				[]string{"Art"},
-				"MIT",
-				"Go-Test",
-				"trace",
-				"path/to/thumb",      // Thumbnail path
-				nil,                  // last_indexed_at
-				"PENDING_VALIDATION", // Status
-				time.Now(),           // created_at
-				time.Now(),           // updated_at
-				nil,                  // deleted_at
+				validUserUUID, "test@example.com", "tester", false, // Seller
+				"Valid Listing", "Desc", int64(1050), "gbp", []string{"Art"}, "MIT", // Core
+				"Go-Test", "trace", "path/to/thumb", nil, "PENDING_VALIDATION", // Sys
+				true, nil, // Remix
+				true, nil, false, false, nil, false, nil, nil, nil, // Physical
+				false, nil, // AI
+				0, 0, 0, false, nil, nil, 0.0, 0, 0, false, // Stats
+				time.Now(), time.Now(), nil, // Timestamps
 			))
 
-	// Expect: Insert Files (Loop logic is implied in service, explicit in mock)
-	// File 1
-	// Assumes file path format is YYYY/MM/DD/userId/listingDraftID/fileType/filename.ext
-	file1Path := "2025/01/01/" + validUserUUID + "/" + generatedListingID + "/model/model.stl"
-
+	// 3. Expect File Inserts
+	// File 1 (Model)
 	mockPool.ExpectQuery(regexp.QuoteMeta(`INSERT INTO listing_files`)).
 		WithArgs(
-			expectedListingUUID, // ListingID
-			file1Path,           // FilePath
-			repo.FileTypeMODEL,  // FileType
-			pgxmock.AnyArg(),    // FileSize
-			pgxmock.AnyArg(),    // Metadata
-			pgxmock.AnyArg(),    // Status
+			expectedListingUUID, // 1. ListingID
+			inputFile1Path,      // 2. FilePath
+			repo.FileTypeMODEL,  // 3. FileType
+			pgxmock.AnyArg(),    // 4. FileSize
+			pgxmock.AnyArg(),    // 5. Metadata
+			pgxmock.AnyArg(),    // 6. Status
+			false,               // 7. is_generated (Default for uploads)
 		).
 		WillReturnRows(pgxmock.NewRows(testutil.ListingFileCols).AddRow(
 			generatedFileID1,
 			generatedListingID,
-			file1Path,
+			inputFile1Path,
 			repo.FileTypeMODEL,
 			int64(1024),
-			[]byte("{}"), // Metadata (JSONB)
+			[]byte("{}"), // Metadata
 			"PENDING",    // Status
-			nil,          // Error Message
-			time.Now(),   // CreatedAt
-			time.Now(),   // UpdatedAt (Added this!)
-			nil,          // DeletedAt
+			nil,          // Error
+			false,        // is_generated
+			nil,          // source_file_id
+			time.Now(), time.Now(), nil,
 		))
 
-	// File 2
-	// Assumes file path format is YYYY/MM/DD/userId/listingDraftID/fileType/filename.ext
-	file2Path := "2025/01/01/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11/" + generatedListingID + "/image/image.jpg"
+	// File 2 (Image)
 	mockPool.ExpectQuery(regexp.QuoteMeta(`INSERT INTO listing_files`)).
 		WithArgs(
 			expectedListingUUID, // 1. ListingID
-			file2Path,           // 2. FilePath
+			inputFile2Path,      // 2. FilePath
 			repo.FileTypeIMAGE,  // 3. FileType
 			pgxmock.AnyArg(),    // 4. FileSize
 			pgxmock.AnyArg(),    // 5. Metadata
 			pgxmock.AnyArg(),    // 6. Status
+			false,               // 7. is_generated
 		).
 		WillReturnRows(pgxmock.NewRows(testutil.ListingFileCols).AddRow(
 			generatedFileID2,
 			generatedListingID,
-			file2Path,
+			inputFile2Path,
 			repo.FileTypeIMAGE,
 			int64(500),
 			[]byte("{}"),
 			"PENDING",
 			nil,
-			time.Now(),
-			time.Now(),
+			false,
 			nil,
+			time.Now(), time.Now(), nil,
 		))
 
+	// 4. Expect Commit
 	mockPool.ExpectCommit()
 
 	result, err := service.CreateListing(context.Background(), userInfo, req)
 
 	if err != nil {
 		t.Logf("Inner Error: %v", err)
-
 	}
 	assert.NoError(t, err)
 	assert.Equal(t, "Valid Listing", result.Title)

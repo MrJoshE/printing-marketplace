@@ -1,13 +1,11 @@
 import { UsersListings } from '@/components/listings/users-listings'
 import { SiteHeader } from '@/components/marketplace-header'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/(home)/my-listings')({
   component: MyListings,
 })
 
-const queryClient = new QueryClient()
 
 function MyListings() {
   return (
@@ -24,9 +22,7 @@ function MyListings() {
           </p>
         </div>
 
-        <QueryClientProvider client={queryClient}>
           <UsersListings />
-        </QueryClientProvider>
 
       </div>
     </div>

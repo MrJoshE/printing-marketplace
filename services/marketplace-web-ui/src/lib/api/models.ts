@@ -1,3 +1,4 @@
+
 // Standard Backend Error Format
 export interface ApiErrorResponse {
   error_code: string;
@@ -35,18 +36,94 @@ export interface PresignResponse {
 }
 
 export interface CreateListingFile {
-  type:string;  
+  type: string;
   path: string;
   size: number;
 }
 
+export interface ListingDimensions {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface ListingPrinterSettings {
+  nozzleDiameter: string | null;
+  nozzleTemperature: number | null;
+  recommendedMaterials: string[] | null;
+  recommendedNozzleTempC: number | null;
+  
+  isAssemblyRequired: boolean;
+  isHardwareRequired: boolean;
+  isMulticolor: boolean;
+  
+  hardwareRequired: string[] | null;
+}
+
+export interface UpdateListingPrinterSettings {
+  nozzleDiameter?: string | null;
+  nozzleTemperature?: number | null;
+  recommendedMaterials?: string[] | null;
+  recommendedNozzleTempC?: number | null;
+  isAssemblyRequired?: boolean | null;
+  isHardwareRequired?: boolean | null;
+  isMulticolor?: boolean | null;
+  hardwareRequired?: string[] | null;
+}
+
+export interface UpdateListingRequest {
+  // Core
+  title?: string;
+  description?: string;
+  categories?: string[];
+  license?: string;
+  
+  // Sales
+  price_min_unit?: number;
+  currency?: string;
+  isFree?: boolean;
+
+  // Nested
+  printerSettings?: UpdateListingPrinterSettings;
+  dimensions?: ListingDimensions;
+
+  // Safety & Meta
+  isNSFW?: boolean;
+  isPhysical?: boolean;
+  isAIGenerated?: boolean;
+  aiModelName?: string | null;
+  isRemixingAllowed?: boolean;
+}
+
 export interface CreateListingRequest {
+  // Core Identity
   title: string;
   description: string;
-  price: number;
   categories: string[];
   license: string;
-  
+
+  // Sales & Merch
+  // Go expects 'price_min_unit' (int64). Ensure you convert 
+  // major units (e.g. 10.50) to minor units (e.g. 1050) in the frontend.
+  price_min_unit: number; 
+  currency: string;
+  isFree: boolean;
+
+  // Slicer & Tech Specs
+  printerSettings: ListingPrinterSettings;
+  dimensions: ListingDimensions | null;
+
+  // Legal, Safety & Content
+  isNSFW: boolean;
+  isPhysical: boolean;
+
+  // AI Generation
+  isAIGenerated: boolean;
+  aiModelName: string | null;
+
+  // Community
+  isRemixingAllowed: boolean;
+
   files: CreateListingFile[];
 }
 
@@ -104,6 +181,8 @@ export interface ListingProps {
     // URL of the cover image for the listing
     thumbnail_path?: string | null
 
+    thumbnail_url?: string | null
+
     files: ListingFile[]
     
     // Title of the listing
@@ -112,10 +191,6 @@ export interface ListingProps {
     // Description of the listing
     description: string
 
-    // Information about the seller of the listing
-    seller_name: string
-    seller_username:string
-
     // Payment details for the listing
     price_min_unit: number;
     currency: string;
@@ -123,12 +198,57 @@ export interface ListingProps {
     // Under which license the listing is provided
     license: string;
 
-    // Tags or categories associated with the listing
+    // Categories associated with the listing
     categories: string[];
 
+    // If this listing is a remix of another listing, the ID of the parent listing
+    parent_listing_id?: string | null;
+
+    // Physical dimensions (in mm) - vital for "Will this fit on my printer?" filters
+    is_physical: boolean;
+    total_weight_grams: number | null;
+    dim_x_mm: number | null;
+    dim_y_mm: number | null;
+    dim_z_mm: number | null;
+
+    is_assembly_required: boolean;
+    is_hardware_required: boolean;
+    hardware_required: string[] | null;
+
+    // Remixing and modification permissions
+    is_remixing_allowed: boolean;
+    
+    // Printer settings
+    is_multicolor: boolean;
+    recommended_materials: string[];
+    recommended_nozzle_temp_c: number | null;
+
+    // AI generation flags
+    is_ai_generated: boolean;
+    ai_model_name: string | null;
+
+    // Legal, Safety & Content Rating
+    is_nsfw: boolean;
+    
+    // Social Signals
+    likes_count: number;
+    downloads_count: number;
+    comments_count: number;
+
+    is_sale_active: boolean;
+    sale_name: string | null;
+    sale_end_timestamp: string | null; // Millseconds since epoch
+
+    // Seller
+    seller_id: string
+    seller_name: string
+    seller_verified: boolean
+    seller_username:string
+
+    // Timestamps
     created_at: string;
     updated_at: string;
-    last_indexed_at: string;
+    last_indexed_at?: string | null;
 
     status: "PENDING_VALIDATION" | "ACTIVE" | "INACTIVE" | "REJECTED"
 

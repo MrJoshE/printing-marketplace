@@ -11,3 +11,7 @@ sql:
         emit_json_tags: true
         emit_interface: true # Generate interfaces for easier mocking in tests
         emit_prepared_queries: true
+        overrides:
+          # Convert price (cents) directly to int64
+          - column: "listings.price_min_unit"
+            go_type: "int64"

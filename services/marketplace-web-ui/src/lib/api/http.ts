@@ -9,6 +9,14 @@ const apiClient = axios.create({
   },
 });
 
+const publicRoutesApiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4024",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+
 // 1. Request Interceptor: Attach Keycloak Token
 apiClient.interceptors.request.use(async (config) => {
   // Optional: Update token if expired
@@ -23,7 +31,7 @@ apiClient.interceptors.request.use(async (config) => {
 });
 
 // 2. Response Interceptor: Normalize Errors
-apiClient.interceptors.response.use(
+[apiClient, publicRoutesApiClient].forEach(client => client.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiErrorResponse>) => {
     if (error.response?.data?.error_code) {
@@ -34,6 +42,8 @@ apiClient.interceptors.response.use(
     // Fallback for network errors (no response from server)
     throw error;
   }
-);
+));
 
-export { apiClient };
+
+
+export { apiClient, publicRoutesApiClient };

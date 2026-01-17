@@ -62,7 +62,7 @@ export function StageAssets({
                             Design Files
                         </CardTitle>
                         <p className="text-xs text-muted-foreground">
-                            Attach your source files (STL, OBJ, 3MF, ZIP). Max 10.
+                            Attach your source files (STL). Max 10.
                         </p>
                     </div>
                     <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 gap-1.5">

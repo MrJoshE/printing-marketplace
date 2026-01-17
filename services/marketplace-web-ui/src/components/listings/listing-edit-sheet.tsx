@@ -1,27 +1,112 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { AlertCircle, Loader2, Mail, Save } from "lucide-react"
+import {
+  Box,
+  Loader2,
+  Printer,
+  Save,
+  ShieldAlert,
+  X
+} from "lucide-react"
+import { type KeyboardEvent, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+// Removed ScrollArea import to use native scrolling
+import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import type { ListingProps } from "@/lib/api/models"
+
+import type { ListingProps, UpdateListingRequest } from "@/lib/api/models"
 import { ListingService } from "@/lib/services/listing-service"
 import { AnimatedDeleteButton } from "../ui/animated-delete-button"
 import { ListingEditImages, ListingEditModels } from "./listing-edit-files"
 
-// Zod Schema for validation
+// --- Helper Component: String List Input (Tags) ---
+interface StringListInputProps {
+  value: string[]
+  onChange: (val: string[]) => void
+  placeholder?: string
+}
+
+function StringListInput({ value = [], onChange, placeholder }: StringListInputProps) {
+  const [inputValue, setInputValue] = useState("")
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault()
+      const trimmed = inputValue.trim()
+      if (trimmed && !value.includes(trimmed)) {
+        onChange([...value, trimmed])
+        setInputValue("")
+      }
+    }
+  }
+
+  const removeTag = (tagToRemove: string) => {
+    onChange(value.filter((tag) => tag !== tagToRemove))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Input
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className="bg-background"
+      />
+      <div className="flex flex-wrap gap-2">
+        {value?.map((tag) => (
+          <Badge key={tag} variant="secondary" className="px-2 py-1 text-sm font-normal">
+            {tag}
+            <button type="button" onClick={() => removeTag(tag)} className="ml-2 hover:text-destructive">
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// --- Zod Schema ---
 const listingFormSchema = z.object({
-  title: z.string().min(5, "Title must be at least 5 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  price_min_unit: z.number().min(0),
+  title: z.string().min(5, "Title too short"),
+  description: z.string().optional(),
+  price_min_unit: z.coerce.number().min(0),
+  
+  // Safety
+  isNSFW: z.boolean().default(false),
+  isAIGenerated: z.boolean().default(false),
+  aiModelName: z.string().optional().nullable(),
+  
+  // Physical
+  isPhysical: z.boolean().default(false),
+  dimensions: z.object({
+    x: z.coerce.number().default(0),
+    y: z.coerce.number().default(0),
+    z: z.coerce.number().default(0),
+  }).optional(),
+
+  // Printer Settings
+  printerSettings: z.object({
+    nozzleDiameter: z.string().optional().nullable(),
+    nozzleTemperature: z.coerce.number().optional().nullable(),
+    recommendedMaterials: z.array(z.string()).optional().nullable(),
+    isMulticolor: z.boolean().default(false).nullable(),
+    isAssemblyRequired: z.boolean().default(false).nullable(),
+    isHardwareRequired: z.boolean().default(false).nullable(),
+    hardwareRequired: z.array(z.string()).optional().nullable(),
+  }).optional(),
 })
 
 type ListingFormValues = z.infer<typeof listingFormSchema>
@@ -35,22 +120,45 @@ interface ListingEditSheetProps {
 export function ListingEditSheet({ listing, isOpen, onClose }: ListingEditSheetProps) {
   const queryClient = useQueryClient()
 
-  // 1. Setup Form
+  // 1. Initialize Form with Defaults
   const form = useForm<ListingFormValues>({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
       title: listing.title,
       description: listing.description || "",
       price_min_unit: listing.price_min_unit || 0,
+      isNSFW: listing.is_nsfw || false,
+      isAIGenerated: listing.is_ai_generated || false,
+      aiModelName: listing.ai_model_name || "",
+      isPhysical: listing.is_physical || false,
+      dimensions: {
+        x: listing.dim_x_mm || 0,
+        y: listing.dim_y_mm || 0,
+        z: listing.dim_z_mm || 0,
+      },
+      printerSettings: {
+        nozzleDiameter: listing.recommended_nozzle_diameter || "",
+        nozzleTemperature: listing.recommended_nozzle_temp_c || undefined,
+        recommendedMaterials: listing.recommended_materials || [],
+        isMulticolor: listing.is_multicolor || false,
+        isAssemblyRequired: listing.is_assembly_required || false,
+        isHardwareRequired: listing.is_hardware_required || false,
+        hardwareRequired: listing.hardware_required || [],
+      }
     },
   })
 
+  // Watchers for conditional UI
+  const isAIGenerated = form.watch("isAIGenerated")
+  const isPhysical = form.watch("isPhysical")
+  const isHardwareRequired = form.watch("printerSettings.isHardwareRequired")
+
+  // --- DELETE Mutation ---
   const deleteMutation = useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-      
         return await ListingService.deleteListing(id);
     },
-    onMutate: async (variables) => {
+    onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["listing", listing.id!] })
     },
     onSuccess: () => {
@@ -58,206 +166,408 @@ export function ListingEditSheet({ listing, isOpen, onClose }: ListingEditSheetP
       queryClient.invalidateQueries({ queryKey: ["listings", "public"] })
       onClose()
     },
-    onError: (err) => {
+    onError: () => {
       toast.error("Failed to delete listing. Please try again.")
     }
   });
 
   const handleDelete = async () => {
-    // deleteMutation.mutate(listing.id)
-    deleteMutation.mutate({ id: listing.id })
+    deleteMutation.mutate({ id: listing.id! })
   }
 
+  // --- UPDATE Mutation ---
   const updateMutation = useMutation({
-    mutationFn: (values: ListingFormValues) => ListingService.updateListing(listing.id!, values),
-    onMutate: async (newListing) => {
+    mutationFn: (values: ListingFormValues) => {
+        // Ensure we cast to the strict backend type
+        return ListingService.updateListing(listing.id!, values as unknown as UpdateListingRequest)
+    },
+    onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["listings", "public"] })
-      await queryClient.cancelQueries({ queryKey: ["listing", listing.id!] })
-
-      // Snapshot previous value
-      const previousListing = queryClient.getQueryData(["listing", listing.id!])
-
-      // Optimistically update the cache
-      queryClient.setQueryData(["listing", listing.id!], (old: any) => ({
-        ...old,
-        ...newListing,
-      }))
-
-      return { previousListing }
+      const previous = queryClient.getQueryData(["listing", listing.id!])
+      return { previous }
     },
     onSuccess: () => {
-      toast.success("Your listing has been updated.")
+      toast.success("Listing updated successfully")
       queryClient.invalidateQueries({ queryKey: ["listings", "public"] })
     },
-    onError: (err, newListing, context) => {
-      // Rollback on error
-      queryClient.setQueryData(["listing", listing.id], context?.previousListing)
-      toast.error("Failed to update listing. Please try again.")
-    },
+    onError: () => {
+      toast.error("Failed to update listing")
+    }
   })
 
-  const onSubmit = (values: ListingFormValues) => {
-    updateMutation.mutate(values)
-  }
-
-  const handleContactSupport = () => {
-    const subject = `Appeal for Listing ID: ${listing.id}`
-    const body = `Hello Support,\n\nI would like to appeal the rejection of my listing "${listing.title}" (${listing.id}).\n\nReason for appeal:\n`
-    window.location.href = `mailto:support@pinecone.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  }
-
-  // UI States
-  const isDirty = form.formState.isDirty
-  const isRejected = listing.status === "REJECTED"
-  const isPending = listing.status === "PENDING_VALIDATION"
+  const onSubmit = (values: ListingFormValues) => updateMutation.mutate(values)
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-xl">
+      <SheetContent className="flex h-full w-full flex-col gap-0 p-0 sm:w-[700px] sm:max-w-[75vw]">
         
-        {/* Header */}
-        <SheetHeader className="sticky top-0 z-10 border-b bg-background px-6 py-6">
-          <div className="flex items-center justify-between">
-            <SheetTitle>Edit Listing</SheetTitle>
-            <Badge variant={isRejected ? "destructive" : "outline"}>
-              {listing.status.replace("_", " ")}
+        {/* Header - Sticky Top */}
+        <SheetHeader className="border-b px-6 py-6 bg-background">
+          <SheetTitle className="flex items-center gap-2">
+            Edit Listing
+            <Badge variant="outline" className="ml-2 font-normal text-muted-foreground">
+                {listing.status}
             </Badge>
-          </div>
+          </SheetTitle>
           <SheetDescription>
-            Manage changes to your listing details.
+            Manage files, technical details, and pricing.
           </SheetDescription>
         </SheetHeader>
 
-        {/* Content Area */}
-        <div className="flex-1 space-y-6 px-6 py-6">
-          
-          {/* Case 1: Rejected/Flagged */}
-          {isRejected && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Listing Flagged</AlertTitle>
-              <AlertDescription>
-                This listing was flagged during our security check (e.g., potential virus or prohibited content). 
-                It is currently not visible to users. If you believe this is an error, please contact support.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Case 2: Pending */}
-          {isPending && (
-            <Alert className="border-yellow-200 bg-yellow-500/10 text-yellow-700">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertTitle className="ml-2">Processing Validation</AlertTitle>
-              <AlertDescription className="ml-2 mt-1">
-                We are currently scanning your files. You can edit details now, but the listing won't go live until checks complete.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <Form {...form}>
-            <form id="listing-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <fieldset disabled={isRejected || isPending || deleteMutation.isPending} className="space-y-8 group-disabled:opacity-50">
+        {/* Body - Native Scrolling */}
+        {/* flex-1: Fills remaining space between header and footer
+            overflow-y-auto: Enables native vertical scrolling 
+        */}
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="py-6">
+            <Form {...form}>
+              <form id="listing-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 
-                <ListingEditImages files={listing.files} onDeleteFile={async (fileId) => console.log("delete")} onUploadFile={async (file) => console.log(file)} valdateUploadFile={(file) => "Not implemented yet!"}/>
-                <ListingEditModels files={listing.files} onDeleteFile={async (fileId) => console.log("delete")} onUploadFile={async (file) => console.log(file)} valdateUploadFile={(file) => "Not implemented yet!"}/>
-
-                <div className="h-px bg-border" />
-
-                {/* Text Fields */}
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="font-medium" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} rows={5} className="resize-none" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="price_min_unit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Price (Cents)</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {/* Read Only Field example */}
-                  <div className="space-y-2">
-                    <FormLabel>Downloads</FormLabel>
-                    <Input disabled value={0} className="bg-muted" />
-                  </div>
+                 {/* 1. File Editors */}
+                 <div className="grid gap-8">
+                    <ListingEditImages 
+                        files={listing.files} 
+                        onDeleteFile={async (fileId) => console.log("delete", fileId)} 
+                        onUploadFile={async (file) => console.log("upload", file)} 
+                        valdateUploadFile={(file) => "Not implemented yet!"}
+                    />
+                    <ListingEditModels 
+                        files={listing.files} 
+                        onDeleteFile={async (fileId) => console.log("delete", fileId)} 
+                        onUploadFile={async (file) => console.log("upload", file)} 
+                        valdateUploadFile={(file) => "Not implemented yet!"}
+                    />
                 </div>
-              </fieldset>
-            </form>
-          </Form>
+
+                <Separator />
+                
+                {/* 2. Core Details */}
+                <div className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Title</FormLabel>
+                            <FormControl>
+                                <Input {...field} className="text-lg font-medium" />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Description</FormLabel>
+                            <FormControl>
+                                <Textarea {...field} rows={4} className="resize-none" placeholder="Tell the story of this model..." />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                <Separator />
+
+                {/* 3. Categorized Sections */}
+                <Accordion type="multiple" defaultValue={["pricing", "printer"]} className="w-full">
+                    
+                    {/* Pricing Section */}
+                    <AccordionItem value="pricing" className="border-none">
+                        <AccordionTrigger className="hover:no-underline py-2">
+                            <div className="flex items-center gap-2 text-base font-semibold">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs">$</span>
+                                Pricing
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-4 px-1">
+                             <FormField
+                                control={form.control}
+                                name="price_min_unit"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Price (Cents)</FormLabel>
+                                    <FormControl>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
+                                        <Input type="number" {...field} className="pl-7" />
+                                    </div>
+                                    </FormControl>
+                                    <FormDescription>0 for free. Minimum 50 cents for paid.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Printer Settings */}
+                    <AccordionItem value="printer" className="border-t">
+                        <AccordionTrigger className="hover:no-underline py-4">
+                            <div className="flex items-center gap-2 text-base font-semibold">
+                                <Printer className="h-4 w-4" />
+                                Technical Specs
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2 px-1 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="printerSettings.nozzleDiameter"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Nozzle (mm)</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="0.4" value={field.value || ""} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="printerSettings.nozzleTemperature"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Temp (°C)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} placeholder="210" value={field.value || ""} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                             <FormField
+                                control={form.control}
+                                name="printerSettings.recommendedMaterials"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Recommended Materials</FormLabel>
+                                        <FormControl>
+                                            <StringListInput 
+                                                value={field.value || []} 
+                                                onChange={field.onChange} 
+                                                placeholder="PLA, PETG, ABS (Press Enter)"
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div className="grid grid-cols-1 gap-2 rounded-lg border p-3 bg-muted/30">
+                                <FormField
+                                    control={form.control}
+                                    name="printerSettings.isMulticolor"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg p-1">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-sm font-medium">Multicolor / MMU</FormLabel>
+                                            </div>
+                                            <FormControl>
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <Separator />
+                                <FormField
+                                    control={form.control}
+                                    name="printerSettings.isAssemblyRequired"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg p-1">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-sm font-medium">Assembly Required</FormLabel>
+                                            </div>
+                                            <FormControl>
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <Separator />
+                                <FormField
+                                    control={form.control}
+                                    name="printerSettings.isHardwareRequired"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between rounded-lg p-1">
+                                            <div className="space-y-0.5">
+                                                <FormLabel className="text-sm font-medium">Hardware Required</FormLabel>
+                                            </div>
+                                            <FormControl>
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {isHardwareRequired && (
+                                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                                         <FormField
+                                            control={form.control}
+                                            name="printerSettings.hardwareRequired"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-xs text-muted-foreground">List Hardware (e.g. M3 Screws)</FormLabel>
+                                                    <FormControl>
+                                                        <StringListInput 
+                                                            value={field.value || []} 
+                                                            onChange={field.onChange} 
+                                                            placeholder="Type and press Enter..."
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Dimensions & Physical */}
+                    <AccordionItem value="dimensions" className="border-t">
+                        <AccordionTrigger className="hover:no-underline py-4">
+                            <div className="flex items-center gap-2 text-base font-semibold">
+                                <Box className="h-4 w-4" />
+                                Physical Dimensions
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2 px-1">
+                             <FormField
+                                control={form.control}
+                                name="isPhysical"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm mb-4">
+                                        <div className="space-y-0.5">
+                                            <FormLabel className="text-base">Physical Object</FormLabel>
+                                            <FormDescription>
+                                            Is this intended to be printed?
+                                            </FormDescription>
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+
+                            {isPhysical && (
+                                <div className="grid grid-cols-3 gap-4 animate-in fade-in">
+                                    {['x', 'y', 'z'].map((axis) => (
+                                         <FormField
+                                            key={axis}
+                                            control={form.control}
+                                            // @ts-ignore
+                                            name={`dimensions.${axis}`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="uppercase">{axis}</FormLabel>
+                                                    <FormControl>
+                                                        <div className="flex">
+                                                            <Input type="number" {...field} className="rounded-r-none" />
+                                                            <div className="flex items-center justify-center rounded-r-md border border-l-0 bg-muted px-3 text-xs text-muted-foreground">
+                                                                mm
+                                                            </div>
+                                                        </div>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </AccordionContent>
+                    </AccordionItem>
+
+                    {/* Safety & AI */}
+                    <AccordionItem value="safety" className="border-t">
+                        <AccordionTrigger className="hover:no-underline py-4">
+                            <div className="flex items-center gap-2 text-base font-semibold">
+                                <ShieldAlert className="h-4 w-4" />
+                                Safety & AI
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="pt-2 px-1 space-y-4">
+                             <FormField
+                                control={form.control}
+                                name="isNSFW"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                        <FormControl>
+                                            <Checkbox checked={field.value} onCheckedChange={field.checked} />
+                                        </FormControl>
+                                        <div className="space-y-1 leading-none">
+                                            <FormLabel>Mature Content (NSFW)</FormLabel>
+                                            <FormDescription>
+                                                Mark if this contains nudity or violence.
+                                            </FormDescription>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                            
+                            <div className="rounded-md border p-4 space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="isAIGenerated"
+                                    render={({ field }) => (
+                                        <FormItem className="flex flex-row items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <FormLabel>AI Generated</FormLabel>
+                                                <FormDescription className="text-xs">
+                                                    Was this created using GenAI tools?
+                                                </FormDescription>
+                                            </div>
+                                            <FormControl>
+                                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                {isAIGenerated && (
+                                     <FormField
+                                        control={form.control}
+                                        name="aiModelName"
+                                        render={({ field }) => (
+                                            <FormItem className="animate-in fade-in">
+                                                <FormLabel>Model Name</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="e.g. Midjourney v6" value={field.value || ""} />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+              </form>
+            </Form>
+          </div>
         </div>
 
-        {/* Footer Actions - Sticky Bottom */}
-        <SheetFooter className="sticky bottom-0 z-20 flex flex-row items-center justify-between border-t bg-background px-6 py-4">
-          {/* Left Side: Delete */}
-          <AnimatedDeleteButton 
-            onDelete={handleDelete}
-            isDeleting={deleteMutation.isPending}
-          />
-
-          {/* Right Side: Actions */}
-          <div className="flex flex-row gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-
-            {/* Dynamic Action Button */}
-            {isRejected ? (
-              <Button
-                variant="destructive"
-                onClick={handleContactSupport}
-                className="min-w-[100px]"
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Contact Support
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                form="listing-form"
-                disabled={!isDirty || updateMutation.isPending || isPending}
-                className="min-w-[140px]" // Fixed width prevents jitter on loading state
-              >
-                {updateMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
-                )}
-                Save Changes
-              </Button>
-            )}
-          </div>
+        {/* Footer - Sticky Bottom */}
+        <SheetFooter className="border-t bg-background px-6 py-4 sm:justify-between flex-row items-center gap-4">
+             <div className="flex-1">
+                 <AnimatedDeleteButton 
+                    onDelete={handleDelete}
+                    isDeleting={deleteMutation.isPending}
+                 />
+             </div>
+             <div className="flex gap-2">
+                 <Button variant="outline" onClick={onClose} type="button">Cancel</Button>
+                 <Button type="submit" form="listing-form" disabled={(!form.formState.isDirty) ||updateMutation.isPending} className="min-w-[120px]">
+                    {updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save
+                 </Button>
+             </div>
         </SheetFooter>
+
       </SheetContent>
     </Sheet>
   )

@@ -1,6 +1,5 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { IndexedListingProps } from "@/lib/api/models";
 import { cn, formatCurrency } from "@/lib/utils";
 import { Loader2, MoreHorizontal, ShieldAlert } from "lucide-react";
@@ -37,9 +36,9 @@ export function ListingCard({ listing, onClick, className }: ListingCardProps) {
         <div className="relative aspect-square w-full overflow-hidden bg-muted">
           
           {/* Base Image */}
-          {listing.thumbnail_path ? (
+          {listing.thumbnail_url || listing.thumbnail_path ? (
             <img
-              src={listing.thumbnail_path}
+              src={listing.thumbnail_url || listing.thumbnail_path}
               alt={listing.title}
               className={cn(
                 "h-full w-full object-cover transition-transform duration-700",
@@ -106,14 +105,15 @@ export function ListingCard({ listing, onClick, className }: ListingCardProps) {
         <CardContent className="flex flex-col gap-1 p-4">
           <div className="flex items-start justify-between gap-2">
             <h3 className={cn(
-                "line-clamp-1 text-base font-semibold tracking-tight transition-colors",
-                isActive ? "group-hover:text-primary" : "text-muted-foreground"
+              "line-clamp-1 text-base font-semibold tracking-tight transition-colors",
+              isActive ? "group-hover:text-primary" : "text-muted-foreground"
             )}>
               {listing.title}
             </h3>
             
+              {listing.last_indexed_at && <p className="text-xs text-emerald-300  bg-emerald-100/10 rounded px-4" >Live</p>}
             {/* Status Indicator Dot (Red/Yellow/Green) for quick scanning */}
-            <TooltipProvider>
+            {/* <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                    <div className={cn(
@@ -127,7 +127,7 @@ export function ListingCard({ listing, onClick, className }: ListingCardProps) {
                   <p>{listing.status.replace("_", " ")}</p>
                 </TooltipContent>
               </Tooltip>
-            </TooltipProvider>
+            </TooltipProvider> */}
           </div>
 
           <p className="line-clamp-1 text-xs text-muted-foreground">

@@ -1,39 +1,78 @@
 import { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 export interface ListingDraft {
+  // ==================================================
+  // CORE IDENTITY & SEARCH
+  // ==================================================
   title: string;
-  categories: string[];
-  tags: string[];
   description: string;
+  categories: string[];
+  license: "standard" | "commercial" | "open";
+
+  // ==================================================
+  // SLICER & 3D TECH SPECS (Machine Readable)
+  // ==================================================
   printerSettings: {
     nozzleDiameter: string;
-    material: string;
-    supports: boolean;
+    nozzleTemperature: number | null;
+    recommendedMaterials: string[];
+    recommendedNozzleTempC: number | null;
+    isAssemblyRequired: boolean;
+    isHardwareRequired: boolean;
+    isMulticolor: boolean; // Mutli Material / MMU
+    hardwareRequired: string[] | null;  
   };
-  dimensions: { x: string; y: string; z: string };
-  complexity: "beginner" | "intermediate" | "expert";
-  timeEstimate: string;
-  price: number;
+  dimensions: { x: number; y: number; z: number } | null // in mm
+
+  // ==================================================
+  // Legal, Safety & Content Rating
+  // ==================================================
+  isNSFW: boolean;
+  isPhysical: boolean;
+
+  // ==================================================
+  // AI GENERATION
+  // ==================================================
+  isAIGenerated: boolean;
+  aiModelName: string | null;
+
+  // ==================================================
+  // COMMUNITY & REMIX CULTURE
+  // ==================================================
+  isRemixingAllowed: boolean;
+  
+  // ==================================================
+  // SALES & MERCHANDISING
+  // ==================================================
+  priceMinUnits: number;
+  currency: string;
   isFree: boolean;
-  license: "standard" | "commercial" | "open";
 }
 
 const INITIAL_DRAFT: ListingDraft = {
   title: "",
   categories: [],
-  tags: [],
   description: "",
   printerSettings: {
+    nozzleTemperature: null,
     nozzleDiameter: "0.4mm",
-    material: "PLA",
-    supports: false,
+    recommendedMaterials: ["PLA"],
+    recommendedNozzleTempC: null,
+    isAssemblyRequired: false,
+    isMulticolor: false,
+    isHardwareRequired: false,
+    hardwareRequired: null,
   },
-  dimensions: { x: "", y: "", z: "" },
-  complexity: "beginner",
-  timeEstimate: "",
-  price: 0.00,
+  dimensions: { x: 0, y: 0, z: 0 } ,
+  priceMinUnits: 0,
+  currency: "GBP",
+  isPhysical: true,
+  isNSFW: false,
   isFree: true,
-  license: "open",
+  license: "standard",
+  isAIGenerated: false,
+  aiModelName: "",
+  isRemixingAllowed: false,
 };
 
 export function useListingDraft() {

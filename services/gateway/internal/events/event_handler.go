@@ -49,3 +49,21 @@ func (h *EventHandler) RaiseStartFileValidationEvent(evt StartFileValidationEven
 
 	return nil
 }
+
+func (h *EventHandler) RaiseListingIndexEvent(evt ReIndexListingEvent) error {
+	h.logger.Info("Raising ListingIndexEvent",
+		"listing_id", evt.ListingID,
+		"trace_id", evt.TraceID,
+	)
+
+	data, err := json.Marshal(evt)
+	if err != nil {
+		h.logger.Error("Failed to marshal ListingIndexEvent", "error", err)
+		return err
+	}
+
+	msgId := fmt.Sprintf("index.%s", evt.ListingID)
+	h.bus.Publish(h.config.IndexListingEvent, data, msgId)
+
+	return nil
+}

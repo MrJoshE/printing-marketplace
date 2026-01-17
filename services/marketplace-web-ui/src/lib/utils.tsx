@@ -12,7 +12,7 @@ export const MARKETPLACE_CONFIG = Object.freeze({
         clientId: "marketplace-web",         
     },
     typesense: {
-        public_key: "",
+        public_key: "kxnKaNHwORrjC1jJVPSbVLNzb3VB684U",
         host: "localhost",
         connectionTimeout: 2,
         port: 8108,
